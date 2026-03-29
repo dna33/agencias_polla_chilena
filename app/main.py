@@ -231,71 +231,88 @@ DEMO_HTML = """
   <title>Demo Asistente Polla</title>
   <style>
     :root {
-      --bg: #efe8d9;
-      --panel: rgba(255, 250, 242, 0.88);
-      --panel-strong: #fffaf2;
-      --ink: #182224;
-      --muted: #5f6d70;
-      --accent: #0a6c60;
-      --accent-2: #df8b2d;
-      --accent-3: #153f43;
-      --border: #d6c8b0;
-      --shadow: 0 18px 60px rgba(63, 42, 17, 0.12);
+      --bg: #f5f2ea;
+      --paper: #ffffff;
+      --paper-soft: #faf7f1;
+      --ink: #1d2430;
+      --muted: #626d78;
+      --brand-red: #d71920;
+      --brand-red-dark: #a80f16;
+      --brand-blue: #123d8f;
+      --brand-gold: #ffcb05;
+      --line: #d9dee7;
+      --shadow: 0 20px 60px rgba(18, 39, 78, 0.10);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: "Trebuchet MS", "Arial Narrow", Arial, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(223,139,45,0.18), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(10,108,96,0.12), transparent 26%),
-        linear-gradient(180deg, #f5ecdc 0%, var(--bg) 58%, #ebe2d0 100%);
+        radial-gradient(circle at top left, rgba(255,203,5,0.18), transparent 30%),
+        linear-gradient(180deg, #fff 0%, var(--bg) 100%);
       color: var(--ink);
       min-height: 100vh;
     }
     .page {
-      max-width: 1100px;
+      max-width: 1240px;
       margin: 0 auto;
-      padding: 32px 20px 48px;
-    }
-    .hero {
-      display: grid;
-      gap: 18px;
-      margin-bottom: 26px;
+      padding: 24px 18px 40px;
     }
     .eyebrow {
-      color: var(--accent);
-      font-size: 14px;
+      color: var(--brand-gold);
+      font-size: 12px;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      font-weight: 700;
+      font-weight: 800;
     }
-    h1 {
-      font-size: clamp(32px, 6vw, 64px);
-      line-height: 0.95;
-      margin: 0;
-      max-width: 9ch;
+    .hero {
+      background: linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 62%, var(--brand-blue) 100%);
+      border-radius: 28px;
+      padding: 28px;
+      color: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 20px;
     }
-    .sub {
-      max-width: 700px;
-      font-size: 18px;
-      color: var(--muted);
-      line-height: 1.5;
-      margin: 0;
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 360px;
+      height: 360px;
+      right: -140px;
+      top: -160px;
+      background: radial-gradient(circle, rgba(255,203,5,0.34), transparent 68%);
+      pointer-events: none;
     }
     .hero-grid {
       display: grid;
-      grid-template-columns: 1.3fr 0.9fr;
-      gap: 20px;
-      align-items: end;
+      grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.8fr);
+      gap: 18px;
+      align-items: stretch;
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      font-size: clamp(34px, 5vw, 62px);
+      line-height: 0.94;
+      margin: 0;
+      max-width: 8ch;
+      text-transform: uppercase;
+      letter-spacing: -0.03em;
+    }
+    .sub {
+      max-width: 720px;
+      font-size: 18px;
+      color: rgba(255,255,255,0.88);
+      line-height: 1.5;
+      margin: 10px 0 0;
     }
     .hero-card {
-      background: linear-gradient(135deg, rgba(10,108,96,0.94), rgba(21,63,67,0.98));
-      color: #f7f3ea;
-      border-radius: 26px;
-      padding: 22px;
-      box-shadow: var(--shadow);
-      min-height: 220px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 22px;
+      padding: 20px;
       display: grid;
       gap: 14px;
       align-content: space-between;
@@ -303,12 +320,12 @@ DEMO_HTML = """
     .hero-card .statline {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      gap: 10px;
     }
     .hero-card .stat {
-      background: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.10);
       border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 18px;
+      border-radius: 16px;
       padding: 12px;
     }
     .hero-card strong {
@@ -316,26 +333,27 @@ DEMO_HTML = """
       font-size: 24px;
       margin-bottom: 4px;
     }
-    .layout {
+    .shell {
       display: grid;
-      grid-template-columns: minmax(320px, 420px) minmax(320px, 1fr);
-      gap: 20px;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 18px;
       align-items: start;
     }
     .panel {
-      background: var(--panel);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border);
+      background: var(--paper);
+      border: 1px solid var(--line);
       border-radius: 24px;
       box-shadow: var(--shadow);
-      overflow: hidden;
     }
     .panel-head {
-      padding: 20px 22px 0;
+      padding: 22px 22px 0;
     }
     .panel-head h2 {
       margin: 0;
-      font-size: 24px;
+      font-size: 25px;
+      color: var(--brand-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
     .panel-head p {
       margin: 8px 0 0;
@@ -343,7 +361,7 @@ DEMO_HTML = """
       line-height: 1.5;
     }
     .controls {
-      padding: 20px 22px 22px;
+      padding: 18px 22px 22px;
       display: grid;
       gap: 14px;
     }
@@ -352,18 +370,23 @@ DEMO_HTML = """
       gap: 6px;
       font-size: 14px;
       color: var(--muted);
+      font-weight: 700;
     }
     textarea, input {
       width: 100%;
-      border: 1px solid var(--border);
+      border: 1px solid var(--line);
       border-radius: 14px;
       padding: 14px 16px;
-      background: #fff;
+      background: var(--paper-soft);
       color: var(--ink);
       font: inherit;
     }
+    textarea:focus, input:focus {
+      outline: 3px solid rgba(255,203,5,0.28);
+      border-color: var(--brand-blue);
+    }
     textarea {
-      min-height: 120px;
+      min-height: 124px;
       resize: vertical;
     }
     .row {
@@ -382,38 +405,57 @@ DEMO_HTML = """
       border-radius: 999px;
       padding: 12px 18px;
       font: inherit;
+      font-weight: 800;
       cursor: pointer;
-      transition: transform 0.15s ease, opacity 0.15s ease;
+      transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
     }
-    button:hover { transform: translateY(-1px); }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(18, 39, 78, 0.10);
+    }
     button.primary {
-      background: var(--accent);
+      background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-dark) 100%);
       color: #fff;
     }
     button.secondary {
-      background: #efe3cf;
-      color: var(--ink);
+      background: #eef3ff;
+      color: var(--brand-blue);
     }
-    .demo-grid {
+    .chip {
+      background: #fff8d5;
+      border-radius: 999px;
+      border: 1px solid #f0df8b;
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--brand-blue);
+    }
+    .workspace {
+      display: grid;
+      gap: 18px;
+    }
+    .conversation-panel {
       padding: 22px;
       display: grid;
-      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+      grid-template-columns: minmax(0, 0.92fr) minmax(310px, 0.88fr);
       gap: 18px;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.88)),
-        repeating-linear-gradient(
-          180deg,
-          transparent 0,
-          transparent 28px,
-          rgba(217,205,184,0.22) 28px,
-          rgba(217,205,184,0.22) 29px
-        );
+      align-items: start;
+    }
+    .chat-wrap {
+      display: grid;
+      gap: 12px;
     }
     .chat {
       display: grid;
       gap: 14px;
-      min-height: 540px;
+      min-height: 440px;
       align-content: start;
+      background:
+        linear-gradient(180deg, #fff 0%, #fffaf3 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      overflow: auto;
     }
     .bubble {
       max-width: 85%;
@@ -425,24 +467,24 @@ DEMO_HTML = """
     }
     .user {
       justify-self: end;
-      background: #1f2a2c;
+      background: linear-gradient(180deg, var(--brand-blue) 0%, #0d2d69 100%);
       color: #fff;
       border-bottom-right-radius: 6px;
     }
     .bot {
       justify-self: start;
       background: #fff;
-      border: 1px solid var(--border);
+      border: 1px solid var(--line);
       border-bottom-left-radius: 6px;
     }
-    .insights {
+    .insights-grid {
       display: grid;
       gap: 14px;
-      align-content: start;
+      grid-template-rows: auto auto 1fr;
     }
     .summary {
-      background: var(--panel-strong);
-      border: 1px solid var(--border);
+      background: linear-gradient(180deg, #fff 0%, #f7f9fc 100%);
+      border: 1px solid var(--line);
       border-radius: 20px;
       padding: 16px;
       display: grid;
@@ -461,19 +503,22 @@ DEMO_HTML = """
     .map-card {
       overflow: hidden;
       border-radius: 20px;
-      border: 1px solid var(--border);
-      background: #f3eadb;
-      min-height: 220px;
+      border: 1px solid var(--line);
+      background: #eef3ff;
+      min-height: 250px;
     }
     iframe {
       width: 100%;
       height: 100%;
-      min-height: 220px;
+      min-height: 250px;
       border: 0;
     }
+    .rank-panel {
+      padding: 0 22px 22px;
+    }
     .list-card {
-      background: var(--panel-strong);
-      border: 1px solid var(--border);
+      background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
+      border: 1px solid var(--line);
       border-radius: 20px;
       padding: 16px;
       display: grid;
@@ -484,7 +529,7 @@ DEMO_HTML = """
       gap: 10px;
     }
     .result-item {
-      border: 1px solid var(--border);
+      border: 1px solid var(--line);
       border-radius: 16px;
       padding: 14px;
       background: #fff;
@@ -495,12 +540,12 @@ DEMO_HTML = """
     }
     .result-item:hover {
       transform: translateY(-1px);
-      border-color: var(--accent-2);
-      box-shadow: 0 8px 20px rgba(63, 42, 17, 0.08);
+      border-color: rgba(215,25,32,0.45);
+      box-shadow: 0 8px 20px rgba(18, 39, 78, 0.08);
     }
     .result-item.active {
-      border-color: var(--accent);
-      box-shadow: 0 8px 24px rgba(10,108,96,0.12);
+      border-color: var(--brand-red);
+      box-shadow: 0 8px 24px rgba(215,25,32,0.10);
     }
     .result-head {
       display: flex;
@@ -512,13 +557,14 @@ DEMO_HTML = """
       width: 30px;
       height: 30px;
       border-radius: 999px;
-      background: #efe3cf;
+      background: #fff5cc;
       display: inline-grid;
       place-items: center;
       font-size: 13px;
-      color: var(--accent-3);
-      border: 1px solid var(--border);
+      color: var(--brand-blue);
+      border: 1px solid #f0df8b;
       flex: 0 0 auto;
+      font-weight: 800;
     }
     .pill {
       display: inline-flex;
@@ -527,14 +573,16 @@ DEMO_HTML = """
       border-radius: 999px;
       padding: 6px 10px;
       font-size: 12px;
-      border: 1px solid var(--border);
-      background: #f6f0e4;
+      border: 1px solid var(--line);
+      background: #f7f8fb;
       color: var(--muted);
+      white-space: nowrap;
+      font-weight: 700;
     }
     .pill.open {
-      background: rgba(10,108,96,0.1);
-      color: var(--accent);
-      border-color: rgba(10,108,96,0.26);
+      background: rgba(18,61,143,0.08);
+      color: var(--brand-blue);
+      border-color: rgba(18,61,143,0.20);
     }
     .mini {
       color: var(--muted);
@@ -542,39 +590,68 @@ DEMO_HTML = """
       line-height: 1.4;
     }
     .result-actions a {
-      color: var(--accent);
+      color: var(--brand-red);
       text-decoration: none;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 800;
     }
     .status {
       min-height: 22px;
       color: var(--muted);
       font-size: 14px;
     }
-    .chips {
+    .chips,
+    .legend {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
     }
-    .chip {
-      background: #efe3cf;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      padding: 8px 12px;
+    .legend {
+      padding: 0 22px 22px;
+    }
+    .legend .pill {
       font-size: 13px;
-      cursor: pointer;
+      background: #fff;
     }
     @keyframes rise {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    @media (max-width: 860px) {
+    @media (max-width: 1100px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .conversation-panel {
+        grid-template-columns: 1fr;
+      }
+      .insights-grid {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+      }
+      .summary {
+        grid-column: 1 / -1;
+      }
+    }
+    @media (max-width: 760px) {
       .hero-grid { grid-template-columns: 1fr; }
-      .layout { grid-template-columns: 1fr; }
-      .demo-grid { grid-template-columns: 1fr; }
-      .chat { min-height: 240px; }
+      .row { grid-template-columns: 1fr; }
+      .conversation-panel { padding: 18px; }
+      .chat { min-height: 280px; }
+      .insights-grid { grid-template-columns: 1fr; }
       .hero-card .statline { grid-template-columns: 1fr; }
+      .panel-head,
+      .controls,
+      .rank-panel,
+      .legend {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+      .actions button {
+        width: 100%;
+      }
+      .result-head {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -583,14 +660,14 @@ DEMO_HTML = """
     <section class="hero">
       <div class="hero-grid">
         <div>
-          <div class="eyebrow">Demo local</div>
+          <div class="eyebrow">Demo interna</div>
           <h1>Asistente de agencias Polla</h1>
-          <p class="sub">Simula el flujo de WhatsApp sin integrar Meta. Puedes probar texto, comuna o ubicación exacta y mostrarle al equipo cómo responde el motor real del MVP.</p>
+          <p class="sub">Simula el flujo de WhatsApp sin integrar Meta. Prueba mensajes, comuna o ubicación real y muestra al equipo cómo responde el motor de agencias abiertas más cercanas.</p>
         </div>
         <div class="hero-card">
           <div>
-            <div class="eyebrow" style="color:#f4d6aa;">Qué demuestra</div>
-            <p style="margin:0; line-height:1.5;">Importación real del Excel, filtro por agencias elegibles, validación de apertura, cálculo de distancia y respuesta corta para WhatsApp.</p>
+            <div class="eyebrow">Qué demuestra</div>
+            <p style="margin:0; line-height:1.5;">Importación real del Excel, filtro por estado y apertura, cálculo de distancia y respuesta lista para un canal conversacional.</p>
           </div>
           <div class="statline">
             <div class="stat"><strong>7.801</strong><span>filas procesadas</span></div>
@@ -600,11 +677,11 @@ DEMO_HTML = """
         </div>
       </div>
     </section>
-    <section class="layout">
+    <section class="shell">
       <div class="panel">
         <div class="panel-head">
           <h2>Entrada</h2>
-          <p>Usa texto tipo WhatsApp, o comparte una ubicación manual o desde el navegador.</p>
+          <p>Usa texto tipo WhatsApp o comparte una ubicación manual o desde el navegador.</p>
         </div>
         <div class="controls">
           <div class="chips">
@@ -634,26 +711,42 @@ DEMO_HTML = """
           </div>
           <div class="status" id="status"></div>
         </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Resultado de la simulación</h2>
-          <p>La conversación y el ranking usan exactamente la misma lógica del backend que atiende el webhook.</p>
+        <div class="legend">
+          <span class="pill">1. Escribe una frase</span>
+          <span class="pill">2. O usa tu ubicación</span>
+          <span class="pill">3. Revisa ranking y mapa</span>
         </div>
-        <div class="demo-grid">
-          <div class="chat" id="chat">
-            <div class="bubble bot">Compárteme tu ubicación y te digo la agencia abierta más cercana.</div>
+      </div>
+      <div class="workspace">
+        <div class="panel">
+        <div class="panel-head">
+          <h2>Simulación del chat</h2>
+          <p>La conversación usa exactamente la misma lógica del backend que atiende el webhook.</p>
+        </div>
+        <div class="conversation-panel">
+          <div class="chat-wrap">
+            <div class="chat" id="chat">
+              <div class="bubble bot">Compárteme tu ubicación y te digo la agencia abierta más cercana.</div>
+            </div>
           </div>
-          <div class="insights">
+          <div class="insights-grid">
             <div class="summary">
               <h3 id="summary-title">Esperando una consulta</h3>
               <p id="summary-copy">Prueba con texto libre o comparte una ubicación para ver la mejor agencia y las alternativas.</p>
             </div>
-            <div class="map-card" id="map-card">
+            <div class="map-card">
               <iframe id="map-frame" src="about:blank" title="Mapa de agencia"></iframe>
             </div>
+          </div>
+        </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Ranking sugerido</h2>
+            <p>La primera tarjeta es la recomendación principal. Puedes cambiar la selección para ver otra agencia en el mapa.</p>
+          </div>
+          <div class="rank-panel">
             <div class="list-card">
-              <h3>Ranking</h3>
               <div class="result-list" id="result-list">
                 <div class="mini">Todavía no hay resultados para mostrar.</div>
               </div>
@@ -712,7 +805,7 @@ DEMO_HTML = """
 
       const top = response.results[activeIndex] || response.results[0];
       summaryTitleEl.textContent = top.agent_name;
-      summaryCopyEl.textContent = `${top.status_text}. ${top.distance_km} km aprox. ${top.address}.`;
+      summaryCopyEl.textContent = `${top.status_text}. Distancia aproximada: ${top.distance_km} km. Dirección: ${top.address}.`;
       setMap(top.latitude, top.longitude);
     }
 
@@ -726,7 +819,7 @@ DEMO_HTML = """
         return;
       }
       summaryTitleEl.textContent = result.agent_name;
-      summaryCopyEl.textContent = `${result.status_text}. ${result.distance_km} km aprox. ${result.address}.`;
+      summaryCopyEl.textContent = `${result.status_text}. Distancia aproximada: ${result.distance_km} km. Dirección: ${result.address}.`;
       setMap(result.latitude, result.longitude);
     }
 

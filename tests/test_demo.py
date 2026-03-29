@@ -11,7 +11,7 @@ client = TestClient(app)
 def test_demo_page_loads():
     response = client.get("/demo")
     assert response.status_code == 200
-    assert "Demo local" in response.text
+    assert "Demo interna" in response.text
 
 
 def test_demo_message_endpoint_with_text():
