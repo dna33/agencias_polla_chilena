@@ -201,6 +201,12 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Local project artifacts
+.DS_Store
+.idea/
+data/
+input/*.xlsx
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
