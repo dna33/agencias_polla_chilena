@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from urllib.parse import quote_plus
 
 
 def parse_coordinates(value: str | None) -> tuple[float | None, float | None, list[str]]:
@@ -35,5 +36,5 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return earth_radius_km * c
 
 
-def build_google_maps_link(latitude: float, longitude: float) -> str:
-    return f"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}"
+def build_google_maps_link(address: str) -> str:
+    return f"https://www.google.com/maps/search/?api=1&query={quote_plus(address)}"

@@ -26,13 +26,13 @@ class AgencySearchService:
                 f"Dirección: {self._format_address(top)}\n"
                 f"Abierta ahora hasta las {top.closes_at}\n"
                 f"Distancia aproximada: {top.distance_km:.1f} km\n"
-                f"Cómo llegar: {build_google_maps_link(top.agency.latitude, top.agency.longitude)}"
+                f"Cómo llegar: {build_google_maps_link(self._format_address(top))}"
             )
         else:
             lead = (
                 "No encontré agencias abiertas cerca ahora. Las más cercanas son:\n"
                 f"1. {top.agency.agent_name} - {self._format_address(top)} - {self._closed_copy(top)} - {top.distance_km:.1f} km\n"
-                f"Cómo llegar: {build_google_maps_link(top.agency.latitude, top.agency.longitude)}"
+                f"Cómo llegar: {build_google_maps_link(self._format_address(top))}"
             )
 
         if len(results) == 1:
@@ -67,7 +67,7 @@ class AgencySearchService:
                     "status_text": self.describe_status(item),
                     "latitude": agency.latitude,
                     "longitude": agency.longitude,
-                    "google_maps_url": build_google_maps_link(agency.latitude, agency.longitude),
+                    "google_maps_url": build_google_maps_link(self._format_address(item)),
                     "comuna": agency.comuna,
                 }
             )

@@ -7,6 +7,7 @@ from app.importer import is_search_eligible
 from app.matcher import AgencyMatcher
 from app.models import Agency
 from app.scheduler import is_agency_open, parse_schedule_block
+from app.service import AgencySearchService
 
 
 class FakeRepository:
@@ -138,3 +139,25 @@ def test_excludes_non_active_agent_status():
         longitude=-70.66,
         schedule_errors=[],
     ) is False
+
+
+def test_google_maps_link_uses_address_query():
+    service = AgencySearchService()
+    agency = make_agency(
+        1,
+        -33.45,
+        -70.66,
+        {"monday": [{"open": "09:00", "close": "20:00"}], "tuesday": [], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []},
+    )
+    agency.address = "MAIPU 529"
+    agency.comuna = "ARICA"
+    payload = service.serialize_results([
+        type("Result", (), {
+            "agency": agency,
+            "distance_km": 0.8,
+            "is_open": True,
+            "closes_at": "21:00",
+            "next_open_at": None,
+        })()
+    ])
+    assert "MAIPU+529%2C+ARICA" in payload[0]["google_maps_url"]
