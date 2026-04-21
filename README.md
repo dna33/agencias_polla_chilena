@@ -213,3 +213,49 @@ Cobertura minima implementada:
 - parse de coordenadas
 - exclusion por `Estado Comercial`
 - exclusion por `Estado Agente`
+
+## Analisis comercial territorial semanal
+
+Los archivos semanales de ventas se dejan en `input/` como Excel. El analizador ignora la base maestra `MaeGerCom...` y procesa las bases semanales que tengan una columna `Vta.Sem.N`.
+
+```bash
+python3 analyze_weekly_sales.py
+```
+
+El comando genera:
+
+- `data/weekly_agency_sales.csv`: historial normalizado por agencia y semana.
+- `data/commercial_territorial_report.md`: KPIs semanales, territorios, ejecutivos/coordinadores y alertas de gestion.
+
+Uso sugerido:
+
+1. Agregar cada nueva base semanal a `input/`.
+2. Ejecutar `python3 analyze_weekly_sales.py`.
+3. Revisar caidas, recuperaciones, cobertura territorial y agencias sin venta.
+
+## Modulo GitHub Pages
+
+El modulo estatico de gestion semanal vive en `docs/` y puede publicarse con GitHub Pages usando la opcion **Deploy from a branch** con carpeta `/docs`.
+
+Para refrescar los datos del sitio despues de agregar una nueva semana:
+
+```bash
+python3 build_pages_data.py
+```
+
+Esto genera `docs/data/dashboard.json`, que alimenta:
+
+- tablero de KPIs semanales;
+- evolucion semanal agrupada por zona desde la hoja `LOTO_ Comuna`, usando `LOTO_ PtoVta` para mapear comuna a `Ubicación`;
+- filtros por semana, territorio, ejecutivo y prioridad;
+- lista priorizada de agencias;
+- detalle de punto de venta;
+- asistente conversacional local para preguntas como `mayores caidas`, `zona norte semanal`, `territorio norte`, `ejecutivo Dino Diaz` o un codigo Lotos.
+
+Para probarlo localmente:
+
+```bash
+python3 -m http.server 8080 -d docs
+```
+
+Luego abrir `http://127.0.0.1:8080`.

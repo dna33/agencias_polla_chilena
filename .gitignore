@@ -205,6 +205,8 @@ cython_debug/
 .DS_Store
 .idea/
 data/
+!docs/data/
+!docs/data/dashboard.json
 input/*.xlsx
 
 # Marimo
