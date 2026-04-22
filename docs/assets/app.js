@@ -252,7 +252,6 @@ function renderTop50PopulationContext() {
   const rows = [...context.rows].sort((a, b) => (b.agencies_per_100k || 0) - (a.agencies_per_100k || 0));
   const maxDensity = Math.max(...rows.map((row) => row.agencies_per_100k || 0), 1);
   const maxSalesPerCapita = Math.max(...rows.map((row) => row.avg_sales_per_capita || 0), 1);
-  const topRows = rows.slice(0, 12);
   return `
     <div class="population-context">
       <div class="population-head">
@@ -276,7 +275,7 @@ function renderTop50PopulationContext() {
           <span>Ag. / 100k</span>
           <span>Prom. / hab.</span>
         </div>
-        ${topRows.map((row) => `
+        ${rows.map((row) => `
           <div class="population-row">
             <strong>${escapeHtml(row.commune)}</strong>
             <span>${number(row.agencies)}</span>
@@ -414,6 +413,7 @@ function segmentMapPoints(agencies) {
   return agencies
     .filter((agency) => Number.isFinite(agency.latitude) && Number.isFinite(agency.longitude))
     .map((agency) => ({
+      lotosCode: agency.lotos_code,
       code: agency.lotos_code,
       name: agency.agent_name || "Sin nombre",
       zone: agency.territory || "Sin zona",
@@ -421,6 +421,7 @@ function segmentMapPoints(agencies) {
       lat: agency.latitude,
       lon: agency.longitude,
       sales: weekSnapshot(agency, state.week)?.sales || 0,
+      history: agency.history || [],
     }))
     .filter((point) => point.sales > 0);
 }
@@ -443,15 +444,22 @@ function initSegmentMap(id, points) {
     map.fitBounds(chileBounds, { padding: [14, 14] });
   }
   points.forEach((point) => {
-    L.circleMarker([point.lat, point.lon], {
+    const marker = L.circleMarker([point.lat, point.lon], {
       radius: mapPointRadius(point.sales),
       color: "white",
       weight: 1,
       fillColor: zoneColor(point.zone),
       fillOpacity: 0.72,
     })
-      .bindPopup(`<strong>${escapeHtml(point.code)} · ${escapeHtml(point.name)}</strong><div>${escapeHtml(point.comuna)} · ${escapeHtml(point.zone)}</div><div>${money(point.sales)}</div>`, { maxWidth: 260 })
+      .bindPopup(mapPopup(point), { maxWidth: 280 })
       .addTo(map);
+    marker.on("click", () => {
+      const agency = state.data.agencies.find((item) => item.lotos_code === point.lotosCode);
+      if (agency) {
+        state.selectedAgency = agency;
+        renderDetail(agency);
+      }
+    });
   });
   setTimeout(() => map.invalidateSize(), 0);
   return map;

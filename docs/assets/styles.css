@@ -186,6 +186,14 @@ select:focus {
   min-width: 0;
 }
 
+.segment-layout {
+  display: grid;
+  grid-template-columns: minmax(620px, 1fr) minmax(320px, 0.38fr);
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
 .segment-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -823,6 +831,10 @@ select:focus {
   top: 92px;
   max-height: calc(100vh - 112px);
   overflow: auto;
+}
+
+.segment-detail-panel {
+  margin-bottom: 0;
 }
 
 .map-grid {
@@ -1476,6 +1488,7 @@ td strong {
 
   .kpis,
   .two-column,
+  .segment-layout,
   .segment-grid,
   .segment-metrics,
   .population-summary,

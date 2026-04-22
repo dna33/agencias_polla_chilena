@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gestion territorial de agencias</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="assets/styles.css?v=20260422-censo-18plus">
+    <link rel="stylesheet" href="assets/styles.css?v=20260422-top50-detalle">
   </head>
   <body>
     <header class="topbar">
@@ -88,15 +88,27 @@
         </article>
       </section>
 
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Subset estrategico</p>
-            <h2>Red completa vs Top 50 por venta promedio</h2>
+      <section class="segment-layout">
+        <div class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Subset estrategico</p>
+              <h2>Red completa vs Top 50 por venta promedio</h2>
+            </div>
+            <div class="table-count">Comparacion independiente de filtros</div>
           </div>
-          <div class="table-count">Comparacion independiente de filtros</div>
+          <div id="segmentComparison" class="segment-comparison"></div>
         </div>
-        <div id="segmentComparison" class="segment-comparison"></div>
+
+        <aside class="panel detail-panel segment-detail-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Detalle</p>
+              <h2 id="detailTitle">Selecciona una agencia</h2>
+            </div>
+          </div>
+          <div id="agencyDetail" class="detail-grid"></div>
+        </aside>
       </section>
 
       <section class="panel">
@@ -200,18 +212,7 @@
         <div id="weeklyZoneChart" class="weekly-zone-chart" role="img" aria-label="Evolucion semanal por zona"></div>
       </section>
 
-      <section class="management-grid">
-        <aside class="panel detail-panel">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">Detalle</p>
-              <h2 id="detailTitle">Selecciona una agencia</h2>
-            </div>
-          </div>
-          <div id="agencyDetail" class="detail-grid"></div>
-        </aside>
-
-        <div class="panel">
+      <section class="panel">
           <div class="section-title">
             <div>
               <p class="eyebrow">Gestion</p>
@@ -234,7 +235,6 @@
               <tbody id="agencyTable"></tbody>
             </table>
           </div>
-        </div>
       </section>
     </main>
 
@@ -259,6 +259,6 @@
     </aside>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/app.js?v=20260422-censo-18plus"></script>
+    <script src="assets/app.js?v=20260422-top50-detalle"></script>
   </body>
 </html>
