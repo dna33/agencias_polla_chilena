@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 
 
 WEEKLY_SALES_RE = re.compile(r"^Vta\.Sem\.(\d+)$", re.IGNORECASE)
+FILENAME_WEEK_RE = re.compile(r"\b(?:semana|sem)\s*(\d{1,2})\b", re.IGNORECASE)
 
 
 @dataclass(slots=True)
@@ -70,13 +71,15 @@ def parse_weekly_workbook(path: str | Path) -> WeeklyWorkbookParseResult:
     workbook = load_workbook(workbook_path, read_only=True, data_only=True)
     rows: list[WeeklyAgencySale] = []
     skipped_sheets: list[str] = []
+    filename_week = _week_from_filename(workbook_path.name)
 
     for sheet in workbook.worksheets:
-        header_row, headers, week = _find_header(sheet)
-        if header_row is None or headers is None or week is None:
+        header_row, headers, header_week, sales_header = _find_header(sheet)
+        if header_row is None or headers is None or header_week is None or sales_header is None:
             skipped_sheets.append(sheet.title)
             continue
 
+        week = filename_week or header_week
         normalized_headers = [_normalized_header(header) for header in headers]
         for row_index, row in enumerate(sheet.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
             if _is_empty_row(row):
@@ -85,7 +88,7 @@ def parse_weekly_workbook(path: str | Path) -> WeeklyWorkbookParseResult:
             lotos_code = _code(row_map.get("lotos"))
             if not lotos_code:
                 continue
-            weekly_sales = _number(row_map.get(f"vta.sem.{week}")) or 0.0
+            weekly_sales = _number(row_map.get(sales_header)) or 0.0
             rows.append(
                 WeeklyAgencySale(
                     source_file=workbook_path.name,
@@ -121,7 +124,7 @@ def parse_weekly_workbook(path: str | Path) -> WeeklyWorkbookParseResult:
     return WeeklyWorkbookParseResult(rows=rows, skipped_sheets=skipped_sheets)
 
 
-def _find_header(sheet) -> tuple[int | None, list[object] | None, int | None]:
+def _find_header(sheet) -> tuple[int | None, list[object] | None, int | None, str | None]:
     for row_index in range(1, min(sheet.max_row, 15) + 1):
         values = [sheet.cell(row_index, column).value for column in range(1, sheet.max_column + 1)]
         normalized_headers = [_normalized_header(value) for value in values]
@@ -130,8 +133,15 @@ def _find_header(sheet) -> tuple[int | None, list[object] | None, int | None]:
         for header in normalized_headers:
             match = WEEKLY_SALES_RE.match(header)
             if match:
-                return row_index, values, int(match.group(1))
-    return None, None, None
+                return row_index, values, int(match.group(1)), header
+    return None, None, None, None
+
+
+def _week_from_filename(filename: str) -> int | None:
+    match = FILENAME_WEEK_RE.search(filename)
+    if not match:
+        return None
+    return int(match.group(1))
 
 
 def _is_empty_row(row: tuple[object, ...]) -> bool:

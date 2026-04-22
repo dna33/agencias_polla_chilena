@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gestion territorial de agencias</title>
-    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="assets/styles.css?v=20260422-lineas-detalle">
   </head>
   <body>
     <header class="topbar">
@@ -49,6 +50,19 @@
             <option value="seguimiento">Seguimiento</option>
           </select>
         </label>
+        <label class="field">
+          <span>Trayectoria</span>
+          <select id="trajectorySelect">
+            <option value="">Todas</option>
+            <option value="creciente">Creciente</option>
+            <option value="estable">Estable</option>
+            <option value="deterioro">Deterioro</option>
+            <option value="intermitente">Intermitente</option>
+            <option value="reactivada">Reactivada</option>
+            <option value="apagada">Apagada</option>
+            <option value="sin_venta">Sin venta</option>
+          </select>
+        </label>
       </section>
 
       <section class="kpis" aria-label="Indicadores principales">
@@ -74,6 +88,45 @@
         </article>
       </section>
 
+      <section class="panel">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Serie de tiempo</p>
+            <h2>Lectura de trayectorias</h2>
+          </div>
+          <div class="table-count" id="seriesWindow">Semanas disponibles</div>
+        </div>
+        <div id="seriesNarrative" class="series-narrative"></div>
+        <div class="series-grid">
+          <div>
+            <h3 class="subsection-title">Clasificacion de agencias</h3>
+            <div id="trajectoryMix" class="trajectory-mix"></div>
+          </div>
+          <div>
+            <h3 class="subsection-title">Señales principales</h3>
+            <div id="seriesSignals" class="signal-list"></div>
+          </div>
+        </div>
+        <div>
+          <h3 class="subsection-title">Concentracion territorial de trayectorias</h3>
+          <div id="trajectoryByTerritory" class="trajectory-table"></div>
+        </div>
+        <div class="series-rankings">
+          <div>
+            <h3 class="subsection-title">Crecimiento sostenido</h3>
+            <div id="growthRanking" class="compact-ranking"></div>
+          </div>
+          <div>
+            <h3 class="subsection-title">Deterioro sostenido</h3>
+            <div id="deteriorationRanking" class="compact-ranking"></div>
+          </div>
+          <div>
+            <h3 class="subsection-title">Alta volatilidad</h3>
+            <div id="volatilityRanking" class="compact-ranking"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="two-column">
         <div class="panel chart-panel">
           <div class="section-title">
@@ -96,6 +149,29 @@
         </div>
       </section>
 
+      <section class="panel chart-panel">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Pozos PDF</p>
+            <h2>Pozo promedio Loto/Kino y venta semanal</h2>
+          </div>
+          <div class="table-count">MM$ promedio vs venta red</div>
+        </div>
+        <div id="jackpotSummary" class="chart-caption"></div>
+        <div id="jackpotChart" class="jackpot-chart" role="img" aria-label="Pozos Loto y Kino comparados con venta semanal"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Territorio</p>
+            <h2>Mapa de zonas comerciales</h2>
+          </div>
+          <div class="table-count">Puntos coloreados por zona</div>
+        </div>
+        <div id="territoryMaps" class="map-grid" aria-label="Mapas de zonas comerciales"></div>
+      </section>
+
       <section class="panel">
         <div class="section-title">
           <div>
@@ -113,39 +189,41 @@
         <div id="weeklyZoneChart" class="weekly-zone-chart" role="img" aria-label="Evolucion semanal por zona"></div>
       </section>
 
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Gestion</p>
-            <h2>Lista priorizada</h2>
+      <section class="management-grid">
+        <aside class="panel detail-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Detalle</p>
+              <h2 id="detailTitle">Selecciona una agencia</h2>
+            </div>
           </div>
-          <div class="table-count" id="tableCount">0 agencias</div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Agencia</th>
-                <th>Territorio</th>
-                <th>Ejecutivo</th>
-                <th>Venta</th>
-                <th>Delta</th>
-                <th>Prioridad</th>
-              </tr>
-            </thead>
-            <tbody id="agencyTable"></tbody>
-          </table>
-        </div>
-      </section>
+          <div id="agencyDetail" class="detail-grid"></div>
+        </aside>
 
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Detalle</p>
-            <h2 id="detailTitle">Selecciona una agencia</h2>
+        <div class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Gestion</p>
+              <h2>Lista priorizada</h2>
+            </div>
+            <div class="table-count" id="tableCount">0 agencias</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agencia</th>
+                  <th>Territorio</th>
+                  <th>Ejecutivo</th>
+                  <th>Venta</th>
+                  <th>Delta</th>
+                  <th>Prioridad</th>
+                </tr>
+              </thead>
+              <tbody id="agencyTable"></tbody>
+            </table>
           </div>
         </div>
-        <div id="agencyDetail" class="detail-grid"></div>
       </section>
     </main>
 
@@ -169,6 +247,7 @@
       </div>
     </aside>
 
-    <script src="assets/app.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="assets/app.js?v=20260422-lineas-detalle"></script>
   </body>
 </html>

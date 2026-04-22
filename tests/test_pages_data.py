@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.weekly_sales import WeeklyAgencySale
-from build_pages_data import build_dashboard_payload
+from build_pages_data import agency_time_series_metrics, build_dashboard_payload
 
 
 def make_row(
@@ -61,3 +61,35 @@ def test_build_dashboard_payload_tracks_latest_delta_and_priorities():
     assert agency["priority"] == "caida_fuerte"
     assert payload["summary"]["by_week"][1]["sales"] == 900_000
     assert payload["priorities"]["biggest_drops"][0]["lotos_code"] == "123456"
+
+
+def test_agency_time_series_metrics_classifies_growth_and_deterioration():
+    growing = agency_time_series_metrics([
+        {"week": 1, "sales": 100_000},
+        {"week": 2, "sales": 250_000},
+        {"week": 3, "sales": 420_000},
+        {"week": 4, "sales": 700_000},
+    ])
+    deteriorating = agency_time_series_metrics([
+        {"week": 1, "sales": 900_000},
+        {"week": 2, "sales": 650_000},
+        {"week": 3, "sales": 300_000},
+        {"week": 4, "sales": 50_000},
+    ])
+
+    assert growing["trajectory"] == "creciente"
+    assert growing["slope_per_week"] > 0
+    assert deteriorating["trajectory"] == "deterioro"
+    assert deteriorating["slope_per_week"] < 0
+
+
+def test_agency_time_series_metrics_detects_trailing_zero_streak():
+    metrics = agency_time_series_metrics([
+        {"week": 1, "sales": 500_000},
+        {"week": 2, "sales": 300_000},
+        {"week": 3, "sales": 0},
+        {"week": 4, "sales": 0},
+    ])
+
+    assert metrics["trajectory"] == "apagada"
+    assert metrics["zero_streak"] == 2

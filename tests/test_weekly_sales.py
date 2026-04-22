@@ -56,3 +56,18 @@ def test_parse_weekly_sheet_with_header_after_metadata_rows(tmp_path):
     assert result.rows[0].week == 15
     assert result.rows[0].operational_status == "activo"
     assert result.rows[0].master_code == "654321"
+
+
+def test_filename_week_overrides_stale_sales_header(tmp_path):
+    path = tmp_path / "Base Sem 10.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "LOTO_ PtoVta"
+    sheet.append(["N°", "  Lotos", "Nombre Agente", "Vta.Sem.09"])
+    sheet.append([1, 123456, "Agencia Uno", 3210])
+    workbook.save(path)
+
+    result = parse_weekly_workbook(path)
+
+    assert result.rows[0].week == 10
+    assert result.rows[0].weekly_sales == 3210
