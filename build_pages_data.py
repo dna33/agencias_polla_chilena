@@ -194,6 +194,7 @@ def top50_population_context(agencies: list[dict], latest_week: int | None, inpu
     top50_avg_sales = sum(item["avg_sales"] for item in rows)
     return {
         "source_file": "personas_censo2024.csv",
+        "population_basis": "Personas mayores de 18 años",
         "top_agencies": len(top50),
         "communes": len(rows),
         "covered_population": covered_population,

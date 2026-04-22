@@ -60,7 +60,7 @@ def population_by_commune(input_dir: str | Path, commune_names: set[str]) -> dic
     if not path.exists():
         return {}
 
-    counts = _count_people_by_code(path, target_codes)
+    counts = _count_adults_by_code(path, target_codes)
     return {
         commune: counts.get(code, 0)
         for commune, code in codes_by_commune.items()
@@ -74,18 +74,27 @@ def normalize_commune(value: str | None) -> str:
     return " ".join(text.upper().strip().split())
 
 
-def _count_people_by_code(path: Path, target_codes: set[str]) -> Counter[str]:
+def _count_adults_by_code(path: Path, target_codes: set[str]) -> Counter[str]:
     counts: Counter[str] = Counter()
     with path.open("r", encoding="utf-8", newline="") as file:
         reader = csv.reader(file, delimiter=";")
         header = next(reader, None)
-        if not header or "comuna" not in header:
+        if not header or "comuna" not in header or "edad" not in header:
             return counts
         commune_index = header.index("comuna")
+        age_index = header.index("edad")
         for row in reader:
-            if len(row) <= commune_index:
+            if len(row) <= max(commune_index, age_index):
                 continue
             code = row[commune_index]
-            if code in target_codes:
+            age = _parse_age(row[age_index])
+            if code in target_codes and age is not None and age > 18:
                 counts[code] += 1
     return counts
+
+
+def _parse_age(value: str) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

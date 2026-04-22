@@ -258,21 +258,21 @@ function renderTop50PopulationContext() {
       <div class="population-head">
         <div>
           <h3>Top 50 y poblacion comunal Censo 2024</h3>
-          <p>${number(context.communes)} comunas · ${number(context.top_agencies)} agencias · ${number(context.covered_population)} habitantes en comunas cubiertas</p>
+          <p>${number(context.communes)} comunas · ${number(context.top_agencies)} agencias · ${number(context.covered_population)} habitantes mayores de 18 en comunas cubiertas</p>
         </div>
-        <span>Fuente: ${escapeHtml(context.source_file)}</span>
+        <span>Fuente: ${escapeHtml(context.source_file)} · ${escapeHtml(context.population_basis || "Poblacion total")}</span>
       </div>
       <div class="population-summary">
-        ${segmentMetric("Venta prom. Top 50 / habitante", money(context.avg_sales_per_capita || 0))}
-        ${segmentMetric("Venta S" + state.week + " / habitante", money(context.latest_sales_per_capita || 0))}
+        ${segmentMetric("Venta prom. Top 50 / hab. 18+", money(context.avg_sales_per_capita || 0))}
+        ${segmentMetric("Venta S" + state.week + " / hab. 18+", money(context.latest_sales_per_capita || 0))}
         ${segmentMetric("Comunas Top 50", number(context.communes))}
-        ${segmentMetric("Poblacion cubierta", number(context.covered_population))}
+        ${segmentMetric("Poblacion 18+ cubierta", number(context.covered_population))}
       </div>
       <div class="population-table">
         <div class="population-row head">
           <span>Comuna</span>
           <span>Top 50</span>
-          <span>Poblacion</span>
+          <span>Poblacion 18+</span>
           <span>Ag. / 100k</span>
           <span>Prom. / hab.</span>
         </div>
