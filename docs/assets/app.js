@@ -111,7 +111,7 @@ async function loadData() {
 
 function showLoadError(error) {
   const message = `No se pudo cargar la data del dashboard. Usa un servidor local o GitHub Pages; abrir index.html directo como archivo puede bloquear data/dashboard.json. Detalle: ${error.message}`;
-  ["seriesNarrative", "territoryChart", "trendChart", "jackpotChart", "weeklyZoneChart", "agencyDetail"].forEach((id) => {
+  ["segmentComparison", "seriesNarrative", "territoryChart", "trendChart", "jackpotChart", "weeklyZoneChart", "agencyDetail"].forEach((id) => {
     const element = document.getElementById(id);
     if (element) element.innerHTML = `<p class="load-error">${escapeHtml(message)}</p>`;
   });
@@ -150,6 +150,7 @@ function render() {
   safeRender("trendChart", renderTrendChart);
   safeRender("jackpotChart", renderJackpotChart);
   safeRender("territoryMaps", () => renderTerritoryMaps(agencies));
+  safeRender("segmentComparison", renderSegmentComparison);
   safeRender("weeklyZoneChart", renderWeeklyZoneChart);
   safeRender("agencyTable", () => renderTable(agencies));
   safeRender("agencyDetail", () => renderDetail(state.selectedAgency));
@@ -215,6 +216,192 @@ function renderKpis(agencies) {
   setText("kpiSellingRate", `${percent(selling / (current.length || 1))} de ${number(current.length)}`);
   setText("kpiClosed", number(closed));
   setText("kpiActions", number(actions));
+}
+
+function renderSegmentComparison() {
+  const container = document.getElementById("segmentComparison");
+  if (!container) return;
+  const full = state.data.agencies || [];
+  const top50 = topAverageAgencies(full);
+  const fullMetrics = segmentMetrics(full, state.week);
+  const topMetrics = segmentMetrics(top50, state.week, fullMetrics.sales);
+  container.innerHTML = `
+    <div class="segment-grid">
+      ${renderSegmentCard("Red completa", "Todas las agencias con historial disponible", fullMetrics, "segmentMapFull")}
+      ${renderSegmentCard("Top 50 promedio", "50 agencias con mayor venta promedio semanal", topMetrics, "segmentMapTop50")}
+    </div>
+  `;
+
+  if (!window.L) {
+    container.querySelectorAll(".segment-map").forEach((map) => {
+      map.innerHTML = "<div class='map-unavailable'>No se pudo cargar Leaflet para el mapa.</div>";
+    });
+    return;
+  }
+
+  state.maps.segmentFull = initSegmentMap("segmentMapFull", segmentMapPoints(full));
+  state.maps.segmentTop50 = initSegmentMap("segmentMapTop50", segmentMapPoints(top50));
+}
+
+function topAverageAgencies(agencies) {
+  return [...agencies]
+    .filter((agency) => (agency.time_series?.avg_sales || 0) > 0)
+    .sort((a, b) => (b.time_series?.avg_sales || 0) - (a.time_series?.avg_sales || 0))
+    .slice(0, 50);
+}
+
+function segmentMetrics(agencies, week, fullSales = null) {
+  const current = agencies.map((agency) => ({ agency, snapshot: weekSnapshot(agency, week) })).filter((item) => item.snapshot);
+  const sales = current.reduce((sum, item) => sum + (item.snapshot.sales || 0), 0);
+  const previousSales = current.reduce((sum, item) => sum + (previousSnapshot(item.agency, week)?.sales || 0), 0);
+  const selling = current.filter((item) => item.snapshot.sales > 0).length;
+  const avgAgencySales = agencies.length ? sales / agencies.length : 0;
+  const avgSeriesSales = agencies.length
+    ? agencies.reduce((sum, agency) => sum + (agency.time_series?.avg_sales || 0), 0) / agencies.length
+    : 0;
+  return {
+    agencies: agencies.length,
+    sales,
+    previousSales,
+    delta: sales - previousSales,
+    selling,
+    sellingRate: selling / Math.max(agencies.length, 1),
+    avgAgencySales,
+    avgSeriesSales,
+    share: fullSales ? sales / fullSales : 1,
+    trajectories: countTrajectories(agencies),
+    territories: countSegmentTerritories(agencies, week),
+  };
+}
+
+function renderSegmentCard(title, subtitle, metrics, mapId) {
+  const topTerritories = Object.entries(metrics.territories)
+    .sort((a, b) => b[1].sales - a[1].sales)
+    .slice(0, 4);
+  return `
+    <article class="segment-card">
+      <div class="segment-head">
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(subtitle)}</p>
+        </div>
+        <span>S${state.week}</span>
+      </div>
+      <div class="segment-metrics">
+        ${segmentMetric("Venta semana", money(metrics.sales))}
+        ${segmentMetric("Cambio vs previa", signedMoney(metrics.delta), metrics.delta < 0 ? "red" : "green")}
+        ${segmentMetric("Agencias con venta", `${number(metrics.selling)} / ${number(metrics.agencies)}`)}
+        ${segmentMetric("Cobertura", percent(metrics.sellingRate))}
+        ${segmentMetric("Prom. agencia semana", money(metrics.avgAgencySales))}
+        ${segmentMetric("Prom. agencia serie", money(metrics.avgSeriesSales))}
+        ${segmentMetric("Participacion red", percent(metrics.share))}
+      </div>
+      <div class="segment-subsection">
+        <strong>Trayectorias</strong>
+        ${renderSegmentTrajectory(metrics.trajectories, metrics.agencies)}
+      </div>
+      <div class="segment-subsection">
+        <strong>Territorios</strong>
+        <div class="segment-territories">
+          ${topTerritories.map(([territory, item]) => `<span>${escapeHtml(territory)} · ${money(item.sales)} · ${number(item.agencies)} ag.</span>`).join("") || "<span>Sin territorio</span>"}
+        </div>
+      </div>
+      <div id="${mapId}" class="segment-map" aria-label="${escapeHtml(title)}"></div>
+    </article>
+  `;
+}
+
+function segmentMetric(label, value, tone = "") {
+  return `
+    <div class="segment-metric ${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function countTrajectories(agencies) {
+  return agencies.reduce((acc, agency) => {
+    const trajectory = agency.time_series?.trajectory || "sin_clasificar";
+    acc[trajectory] = (acc[trajectory] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function countSegmentTerritories(agencies, week) {
+  return agencies.reduce((acc, agency) => {
+    const snapshot = weekSnapshot(agency, week);
+    const territory = snapshot?.territory || agency.territory || "Sin territorio";
+    if (!acc[territory]) acc[territory] = { agencies: 0, sales: 0 };
+    acc[territory].agencies += 1;
+    acc[territory].sales += snapshot?.sales || 0;
+    return acc;
+  }, {});
+}
+
+function renderSegmentTrajectory(counts, total) {
+  const order = ["creciente", "estable", "deterioro", "intermitente", "reactivada", "apagada", "sin_venta"];
+  return `
+    <div class="segment-trajectory">
+      ${order.filter((key) => counts[key]).map((key) => {
+        const value = counts[key];
+        return `
+          <div>
+            <span>${trajectoryLabel(key)}</span>
+            <i style="width:${Math.max(4, (value / Math.max(total, 1)) * 100)}%"></i>
+            <strong>${number(value)}</strong>
+          </div>
+        `;
+      }).join("") || "<p class='muted'>Sin trayectorias.</p>"}
+    </div>
+  `;
+}
+
+function segmentMapPoints(agencies) {
+  return agencies
+    .filter((agency) => Number.isFinite(agency.latitude) && Number.isFinite(agency.longitude))
+    .map((agency) => ({
+      code: agency.lotos_code,
+      name: agency.agent_name || "Sin nombre",
+      zone: agency.territory || "Sin zona",
+      comuna: agency.comuna || "Sin comuna",
+      lat: agency.latitude,
+      lon: agency.longitude,
+      sales: weekSnapshot(agency, state.week)?.sales || 0,
+    }))
+    .filter((point) => point.sales > 0);
+}
+
+function initSegmentMap(id, points) {
+  const map = L.map(id, {
+    zoomControl: true,
+    scrollWheelZoom: false,
+    preferCanvas: true,
+  });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+  const chileBounds = [[-56.2, -76.5], [-17.2, -66.0]];
+  if (points.length) {
+    const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
+    map.fitBounds(bounds, { padding: [18, 18], maxZoom: 11 });
+  } else {
+    map.fitBounds(chileBounds, { padding: [14, 14] });
+  }
+  points.forEach((point) => {
+    L.circleMarker([point.lat, point.lon], {
+      radius: mapPointRadius(point.sales),
+      color: "white",
+      weight: 1,
+      fillColor: zoneColor(point.zone),
+      fillOpacity: 0.72,
+    })
+      .bindPopup(`<strong>${escapeHtml(point.code)} · ${escapeHtml(point.name)}</strong><div>${escapeHtml(point.comuna)} · ${escapeHtml(point.zone)}</div><div>${money(point.sales)}</div>`, { maxWidth: 260 })
+      .addTo(map);
+  });
+  setTimeout(() => map.invalidateSize(), 0);
+  return map;
 }
 
 function renderSeriesAnalysis(agencies) {

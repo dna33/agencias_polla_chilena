@@ -182,6 +182,148 @@ select:focus {
   line-height: 1.1;
 }
 
+.segment-comparison {
+  min-width: 0;
+}
+
+.segment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.segment-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+  padding: 14px;
+}
+
+.segment-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.segment-head h3 {
+  margin: 0 0 3px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.segment-head p,
+.segment-head span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.segment-head span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  padding: 4px 8px;
+  font-weight: 760;
+}
+
+.segment-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.segment-metric {
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.segment-metric span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.segment-metric strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.segment-metric.red strong {
+  color: var(--red);
+}
+
+.segment-metric.green strong {
+  color: var(--green);
+}
+
+.segment-subsection {
+  margin-top: 12px;
+}
+
+.segment-subsection > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.segment-trajectory {
+  display: grid;
+  gap: 6px;
+}
+
+.segment-trajectory > div {
+  display: grid;
+  grid-template-columns: 92px minmax(80px, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.segment-trajectory span,
+.segment-trajectory strong,
+.segment-territories span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.segment-trajectory i {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--blue);
+}
+
+.segment-territories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.segment-territories span {
+  border-radius: 999px;
+  background: var(--surface-soft);
+  padding: 5px 8px;
+}
+
+.segment-map {
+  width: 100%;
+  height: 300px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef4f5;
+}
+
 .two-column {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
@@ -1249,6 +1391,8 @@ td strong {
 
   .kpis,
   .two-column,
+  .segment-grid,
+  .segment-metrics,
   .series-grid,
   .series-rankings,
   .map-grid,
