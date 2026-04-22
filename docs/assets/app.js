@@ -242,7 +242,7 @@ function renderSeriesNarrative(agencies) {
   const recentDelta = agencies.reduce((sum, agency) => sum + (agency.time_series?.recent_delta_sales || 0), 0) / total;
   const jackpot = latestJackpotContext();
   const jackpotText = jackpot
-    ? `Los PDF Quick Report aportan pozo promedio para S${jackpot.week}: ${number(jackpot.total_mm)} MM$ (${number(jackpot.loto_total_mm)} Loto + ${number(jackpot.kino_total_mm)} Kino), calculado sobre ${number(Object.keys(jackpot.draws || {}).length)} sorteos.`
+    ? `Los PDF Quick Report aportan pozos promedio separados para S${jackpot.week}: ${number(jackpot.loto_total_mm)} MM$ Loto y ${number(jackpot.kino_total_mm)} MM$ Kino, calculados sobre ${number(Object.keys(jackpot.draws || {}).length)} sorteos.`
     : "No hay pozos cargados desde PDF para cruzar contra la serie.";
   document.getElementById("seriesNarrative").innerHTML = `
     <p>La lectura temporal separa agencias por forma de comportamiento, no solo por la ultima semana. En el filtro actual, ${number(deteriorating)} agencias muestran deterioro sostenido, ${number(apagadas)} estan apagadas y ${number(growing)} muestran crecimiento persistente.</p>
@@ -326,7 +326,7 @@ function renderSeriesSignals(agencies) {
     { label: "Alta volatilidad", value: `${number(volatile)} (${percent(volatile / total)})`, tone: "amber" },
     { label: "Racha cero venta", value: `${number(persistentZero)} agencias`, tone: "blue" },
     { label: "Cambio promedio reciente", value: signedMoney(avgRecentDelta), tone: avgRecentDelta < 0 ? "red" : "green" },
-    { label: jackpot ? `Pozo prom. S${jackpot.week}` : "Pozo promedio", value: jackpot ? `${number(jackpot.total_mm)} MM$` : "Sin dato", tone: "blue" },
+    { label: jackpot ? `Pozo Loto S${jackpot.week}` : "Pozo Loto", value: jackpot ? `${number(jackpot.loto_total_mm)} MM$` : "Sin dato", tone: "blue" },
   ];
   document.getElementById("seriesSignals").innerHTML = signals.map((signal) => `
     <div class="signal-item ${signal.tone}">
@@ -421,7 +421,7 @@ function renderJackpotChart() {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const salesValues = drawable.map((row) => row.sales || 0);
-  const jackpotValues = drawable.flatMap((row) => [row.loto_total_mm || 0, row.kino_total_mm || 0, row.jackpot_total_mm || 0]);
+  const jackpotValues = drawable.flatMap((row) => [row.loto_total_mm || 0, row.kino_total_mm || 0]);
   const maxSales = Math.max(...salesValues, 1);
   const maxJackpot = Math.max(...jackpotValues, 1);
   const x = (index) => margin.left + (index / Math.max(drawable.length - 1, 1)) * plotWidth;
@@ -435,17 +435,26 @@ function renderJackpotChart() {
   const salesPath = line("sales", ySales);
   const lotoPath = line("loto_total_mm", yJackpot);
   const kinoPath = line("kino_total_mm", yJackpot);
-  const totalPath = line("jackpot_total_mm", yJackpot);
-  const salesWithJackpot = drawable.filter((row) => row.sales && row.jackpot_total_mm);
-  const correlation = pearson(
-    salesWithJackpot.map((row) => row.sales),
-    salesWithJackpot.map((row) => row.jackpot_total_mm),
+  const salesWithLotoJackpot = drawable.filter((row) => row.sales && row.loto_total_mm);
+  const lotoCorrelation = pearson(
+    salesWithLotoJackpot.map((row) => row.sales),
+    salesWithLotoJackpot.map((row) => row.loto_total_mm),
   );
-  const topJackpot = [...drawable].filter((row) => row.jackpot_total_mm).sort((a, b) => b.jackpot_total_mm - a.jackpot_total_mm)[0];
+  const salesWithKinoJackpot = drawable.filter((row) => row.sales && row.kino_total_mm);
+  const kinoCorrelation = pearson(
+    salesWithKinoJackpot.map((row) => row.sales),
+    salesWithKinoJackpot.map((row) => row.kino_total_mm),
+  );
+  const topLotoJackpot = [...drawable].filter((row) => row.loto_total_mm).sort((a, b) => b.loto_total_mm - a.loto_total_mm)[0];
+  const topKinoJackpot = [...drawable].filter((row) => row.kino_total_mm).sort((a, b) => b.kino_total_mm - a.kino_total_mm)[0];
   const topSales = [...drawable].filter((row) => row.sales).sort((a, b) => b.sales - a.sales)[0];
+  const corrText = [
+    `corr. venta vs Loto ${lotoCorrelation === null ? "s/d" : round(lotoCorrelation).toFixed(1)}`,
+    `corr. venta vs Kino ${kinoCorrelation === null ? "s/d" : round(kinoCorrelation).toFixed(1)}`,
+  ].join(" · ");
   if (summary) {
-    summary.textContent = topJackpot
-      ? `Pozos promedio desde el sorteo principal de cada PDF. Mayor pozo promedio: S${topJackpot.week}, ${number(topJackpot.jackpot_total_mm)} MM$ sobre ${number(topJackpot.jackpot_draws || 0)} sorteos. Mayor venta: S${topSales?.week || "-"}, ${topSales ? money(topSales.sales) : "sin dato"}. Correlacion simple en semanas comparables: ${correlation === null ? "s/d" : round(correlation).toFixed(1)}.`
+    summary.textContent = topLotoJackpot
+      ? `Venta corresponde a agencias Loto. Mayor pozo promedio Loto: S${topLotoJackpot.week}, ${number(topLotoJackpot.loto_total_mm)} MM$. Mayor pozo promedio Kino: S${topKinoJackpot ? topKinoJackpot.week : "-"}, ${topKinoJackpot ? number(topKinoJackpot.kino_total_mm) : "s/d"} MM$. Mayor venta Loto: S${topSales?.week || "-"}, ${topSales ? money(topSales.sales) : "sin dato"}. ${corrText}.`
       : "Los PDFs aun no aportan pozos comparables.";
   }
 
@@ -461,7 +470,6 @@ function renderJackpotChart() {
         <text class="axis-label jackpot-axis" x="${width - margin.right + 10}" y="${yJackpot(value) + 4}">${number(Math.round(value))} MM$</text>
       `).join("")}
       <path class="jackpot-line sales" d="${salesPath}"></path>
-      <path class="jackpot-line total" d="${totalPath}"></path>
       <path class="jackpot-line loto" d="${lotoPath}"></path>
       <path class="jackpot-line kino" d="${kinoPath}"></path>
       ${drawable.map((row, index) => `
@@ -472,12 +480,11 @@ function renderJackpotChart() {
           <text class="axis-label" x="${x(index)}" y="${height - 22}" text-anchor="middle">S${row.week}</text>
         </g>
       `).join("")}
-      <text class="axis-title" x="${margin.left}" y="18">Venta semanal red</text>
-      <text class="axis-title jackpot-axis" x="${width - margin.right}" y="18" text-anchor="end">Pozo promedio MM$</text>
+      <text class="axis-title" x="${margin.left}" y="18">Venta semanal agencias Loto</text>
+      <text class="axis-title jackpot-axis" x="${width - margin.right}" y="18" text-anchor="end">Pozo promedio por juego MM$</text>
     </svg>
     <div class="jackpot-legend">
-      <span><i class="sales"></i>Venta red</span>
-      <span><i class="total"></i>Pozo prom.</span>
+      <span><i class="sales"></i>Venta agencias Loto</span>
       <span><i class="loto"></i>Loto</span>
       <span><i class="kino"></i>Kino</span>
     </div>

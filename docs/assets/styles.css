@@ -528,14 +528,6 @@ select:focus {
   fill: var(--green);
 }
 
-.jackpot-line.total {
-  stroke: #5c6f68;
-}
-
-.jackpot-dot.total {
-  fill: #5c6f68;
-}
-
 .jackpot-line.loto {
   stroke: var(--blue);
 }
@@ -581,10 +573,6 @@ select:focus {
 
 .jackpot-legend .sales {
   background: var(--green);
-}
-
-.jackpot-legend .total {
-  background: #5c6f68;
 }
 
 .jackpot-legend .loto {
