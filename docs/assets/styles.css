@@ -81,8 +81,8 @@ button {
 }
 
 .layout {
-  width: min(1440px, 100%);
-  padding: 22px 430px 40px 28px;
+  width: min(1840px, 100%);
+  padding: 22px 28px 40px;
 }
 
 .filters {
@@ -188,7 +188,7 @@ select:focus {
 
 .segment-layout {
   display: grid;
-  grid-template-columns: minmax(620px, 1fr) minmax(320px, 0.38fr);
+  grid-template-columns: minmax(760px, 1fr) minmax(420px, 0.42fr);
   gap: 18px;
   align-items: start;
   margin-bottom: 18px;
@@ -196,7 +196,7 @@ select:focus {
 
 .segment-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(380px, 1fr));
   gap: 16px;
 }
 
@@ -383,7 +383,10 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
+  color: inherit;
   padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
 }
 
 .population-row.head {
@@ -393,6 +396,7 @@ select:focus {
   font-size: 12px;
   font-weight: 760;
   padding-bottom: 2px;
+  cursor: default;
 }
 
 .population-row strong {
@@ -1282,6 +1286,22 @@ td strong {
   grid-column: 1 / -1;
 }
 
+.detail-agency-list {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-agency-list button {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12px;
+}
+
 .sparkline {
   min-width: 0;
 }
@@ -1388,7 +1408,8 @@ td strong {
 }
 
 .assistant.collapsed {
-  height: 76px;
+  width: 248px;
+  height: 70px;
 }
 
 .assistant.collapsed .chat-messages,

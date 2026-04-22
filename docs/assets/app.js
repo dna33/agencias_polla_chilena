@@ -65,7 +65,13 @@ function bindEvents() {
     render();
   });
   document.getElementById("assistantToggle").addEventListener("click", () => {
-    document.querySelector(".assistant").classList.toggle("collapsed");
+    const assistant = document.querySelector(".assistant");
+    assistant.classList.toggle("collapsed");
+    const isCollapsed = assistant.classList.contains("collapsed");
+    const button = document.getElementById("assistantToggle");
+    button.textContent = isCollapsed ? "+" : "−";
+    button.title = isCollapsed ? "Abrir asistente" : "Minimizar asistente";
+    button.setAttribute("aria-label", button.title);
   });
   document.getElementById("chatForm").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -232,6 +238,7 @@ function renderSegmentComparison() {
     </div>
     ${renderTop50PopulationContext()}
   `;
+  bindPopulationRows();
 
   if (!window.L) {
     container.querySelectorAll(".segment-map").forEach((map) => {
@@ -276,7 +283,7 @@ function renderTop50PopulationContext() {
           <span>Prom. / hab.</span>
         </div>
         ${rows.map((row) => `
-          <div class="population-row">
+          <button class="population-row" data-commune="${escapeHtml(row.commune)}">
             <strong>${escapeHtml(row.commune)}</strong>
             <span>${number(row.agencies)}</span>
             <span>${number(row.population || 0)}</span>
@@ -288,11 +295,19 @@ function renderTop50PopulationContext() {
               <i class="green" style="width:${Math.max(4, ((row.avg_sales_per_capita || 0) / maxSalesPerCapita) * 100)}%"></i>
               ${money(row.avg_sales_per_capita || 0)}
             </span>
-          </div>
+          </button>
         `).join("")}
       </div>
     </div>
   `;
+}
+
+function bindPopulationRows() {
+  document.querySelectorAll(".population-row[data-commune]").forEach((row) => {
+    row.addEventListener("click", () => {
+      renderCommuneDetail(row.dataset.commune);
+    });
+  });
 }
 
 function topAverageAgencies(agencies) {
@@ -1109,8 +1124,83 @@ function renderDetail(agency) {
   ].join("");
 }
 
+function renderCommuneDetail(commune) {
+  const context = state.data.top50_population_context;
+  const row = context?.rows?.find((item) => item.commune === commune);
+  const detail = document.getElementById("agencyDetail");
+  if (!row || !detail) return;
+  const agencies = topAverageAgencies(state.data.agencies || []).filter((agency) => agency.comuna === commune);
+  const population = row.population || 0;
+  const series = (state.data.weeks || []).map((week) => {
+    const sales = agencies.reduce((sum, agency) => sum + (weekSnapshot(agency, week)?.sales || 0), 0);
+    return {
+      week,
+      sales,
+      perCapita: population ? sales / population : 0,
+      per100k: population ? (sales / population) * 100_000 : 0,
+    };
+  });
+  const latest = series.find((point) => point.week === state.week) || series[series.length - 1] || { sales: 0, perCapita: 0, per100k: 0 };
+  const previous = [...series].filter((point) => point.week < state.week).sort((a, b) => b.week - a.week)[0];
+  const delta = latest.sales - (previous?.sales || 0);
+  setText("detailTitle", `${commune} · detalle comuna`);
+  detail.innerHTML = [
+    detailItem("Poblacion 18+", number(population)),
+    detailItem("Agencias Top 50", number(row.agencies)),
+    detailItem("Agencias / 100k hab.", row.agencies_per_100k === null ? "s/d" : round(row.agencies_per_100k).toFixed(1)),
+    detailItem(`Venta S${state.week}`, money(latest.sales)),
+    detailItem("Delta vs previa", signedMoney(delta)),
+    detailItem("Venta / hab. 18+", money(latest.perCapita)),
+    detailItem("Venta / 100k hab.", money(latest.per100k)),
+    detailItem("Prom. serie / hab.", money(row.avg_sales_per_capita || 0)),
+    `<div class="detail-item detail-wide"><span>Serie semanal comuna Top 50</span>${communeSparkline(series)}</div>`,
+    `<div class="detail-item detail-wide"><span>Agencias Top 50 en comuna</span><div class="detail-agency-list">${agencies.map((agency) => `<button data-lotos="${escapeHtml(agency.lotos_code)}">${escapeHtml(agency.lotos_code)} · ${escapeHtml(agency.agent_name || "Sin nombre")} · ${money(agency.time_series?.avg_sales || 0)} prom.</button>`).join("")}</div></div>`,
+  ].join("");
+  detail.querySelectorAll(".detail-agency-list button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const agency = state.data.agencies.find((item) => item.lotos_code === button.dataset.lotos);
+      if (agency) {
+        state.selectedAgency = agency;
+        renderDetail(agency);
+      }
+    });
+  });
+}
+
 function detailItem(label, value) {
   return `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+}
+
+function communeSparkline(series) {
+  const points = [...(series || [])].sort((a, b) => a.week - b.week);
+  if (!points.length) return "<div class='spark-empty'>Sin serie semanal.</div>";
+  const width = 520;
+  const height = 160;
+  const margin = { top: 18, right: 18, bottom: 38, left: 64 };
+  const maxSales = Math.max(...points.map((point) => point.sales), 1);
+  const maxPer100k = Math.max(...points.map((point) => point.per100k), 1);
+  const x = (index) => margin.left + (index / Math.max(points.length - 1, 1)) * (width - margin.left - margin.right);
+  const ySales = (value) => margin.top + (1 - value / maxSales) * (height - margin.top - margin.bottom);
+  const yPer100k = (value) => margin.top + (1 - value / maxPer100k) * (height - margin.top - margin.bottom);
+  const salesPath = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${ySales(point.sales)}`).join(" ");
+  const per100kPath = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${yPer100k(point.per100k)}`).join(" ");
+  const ticks = points.length <= 5 ? points.map((_, index) => index) : [0, points.length - 1];
+  return `
+    <div class="sparkline detail">
+      <svg viewBox="0 0 ${width} ${height}" aria-label="Serie semanal comuna">
+        <line class="grid-line" x1="${margin.left}" y1="${ySales(maxSales)}" x2="${width - margin.right}" y2="${ySales(maxSales)}"></line>
+        <line class="grid-line" x1="${margin.left}" y1="${ySales(0)}" x2="${width - margin.right}" y2="${ySales(0)}"></line>
+        <text class="axis-label" x="${margin.left - 8}" y="${ySales(maxSales) + 4}" text-anchor="end">${shortMoney(maxSales)}</text>
+        <text class="axis-label" x="${margin.left - 8}" y="${ySales(0) + 4}" text-anchor="end">$0</text>
+        <path class="spark-path" d="${salesPath}"></path>
+        <path class="spark-path-total" d="${per100kPath}"></path>
+        ${points.map((point, index) => `<circle class="spark-dot" cx="${x(index)}" cy="${ySales(point.sales)}" r="3.8"><title>S${point.week}: ${money(point.sales)} · ${money(point.perCapita)}/hab · ${money(point.per100k)}/100k</title></circle>`).join("")}
+        ${ticks.map((index) => `<text class="axis-label" x="${x(index)}" y="${height - 10}" text-anchor="middle">S${points[index].week}</text>`).join("")}
+      </svg>
+      <div class="spark-legend"><span><i class="agency"></i>Venta comuna Top 50</span><span><i class="network"></i>Venta / 100k hab. (escala propia)</span></div>
+      <div class="spark-values">${points.map((point) => `<span>S${point.week}: ${money(point.sales)} · ${money(point.per100k)}/100k</span>`).join("")}</div>
+    </div>
+  `;
 }
 
 function agencySparkline(history, variant = "detail") {
