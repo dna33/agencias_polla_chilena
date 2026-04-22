@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-22T12:48:31",
+  "generated_at": "2026-04-22T13:02:26",
   "source_files": [
     "input/Base Mapa Semana 14.xlsx",
     "input/Base Sem 10.xlsx",
@@ -4148,6 +4148,593 @@
       "extraction_note": "Promedio semanal de pozos desde la columna del sorteo principal de cada Quick Report PDF."
     }
   ],
+  "top50_population_context": {
+    "source_file": "personas_censo2024.csv",
+    "top_agencies": 50,
+    "communes": 35,
+    "covered_population": 7239219,
+    "latest_sales": 207770700,
+    "avg_sales": 228180330,
+    "latest_sales_per_capita": 28.700706526491324,
+    "avg_sales_per_capita": 31.520020322634252,
+    "rows": [
+      {
+        "commune": "TOCOPILLA",
+        "population": 25400,
+        "agencies": 1,
+        "latest_sales": 3522300,
+        "avg_sales": 3585510,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "102133"
+        ],
+        "agencies_per_100k": 3.9370078740157477,
+        "latest_sales_per_capita": 138.67322834645668,
+        "avg_sales_per_capita": 141.16181102362205
+      },
+      {
+        "commune": "VALLENAR",
+        "population": 54222,
+        "agencies": 2,
+        "latest_sales": 8479900,
+        "avg_sales": 9039350,
+        "territories": {
+          "Norte": 2
+        },
+        "agency_codes": [
+          "123766",
+          "103076"
+        ],
+        "agencies_per_100k": 3.6885397071299475,
+        "latest_sales_per_capita": 156.3922393124562,
+        "avg_sales_per_capita": 166.71000700822543
+      },
+      {
+        "commune": "SAN ANTONIO",
+        "population": 96770,
+        "agencies": 2,
+        "latest_sales": 8252600,
+        "avg_sales": 8496490,
+        "territories": {
+          "Norte": 2
+        },
+        "agency_codes": [
+          "120249",
+          "105270"
+        ],
+        "agencies_per_100k": 2.066756226103131,
+        "latest_sales_per_capita": 85.2805621576935,
+        "avg_sales_per_capita": 87.80086803761496
+      },
+      {
+        "commune": "LA CALERA",
+        "population": 50631,
+        "agencies": 1,
+        "latest_sales": 4075600,
+        "avg_sales": 4169010,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "105021"
+        ],
+        "agencies_per_100k": 1.9750745590646046,
+        "latest_sales_per_capita": 80.49613872923703,
+        "avg_sales_per_capita": 82.34105587485928
+      },
+      {
+        "commune": "CONCEPCION",
+        "population": 230375,
+        "agencies": 4,
+        "latest_sales": 14367400,
+        "avg_sales": 16160550,
+        "territories": {
+          "Sur": 4
+        },
+        "agency_codes": [
+          "108085",
+          "117331",
+          "108124",
+          "108219"
+        ],
+        "agencies_per_100k": 1.7362995116657622,
+        "latest_sales_per_capita": 62.365274009766686,
+        "avg_sales_per_capita": 70.14888768312534
+      },
+      {
+        "commune": "COYHAIQUE",
+        "population": 57823,
+        "agencies": 1,
+        "latest_sales": 5216400,
+        "avg_sales": 5579800,
+        "territories": {
+          "Sur": 1
+        },
+        "agency_codes": [
+          "111011"
+        ],
+        "agencies_per_100k": 1.729415630458468,
+        "latest_sales_per_capita": 90.21323694723553,
+        "avg_sales_per_capita": 96.4979333483216
+      },
+      {
+        "commune": "CALAMA",
+        "population": 166334,
+        "agencies": 2,
+        "latest_sales": 8947800,
+        "avg_sales": 9977660,
+        "territories": {
+          "Norte": 2
+        },
+        "agency_codes": [
+          "102052",
+          "122756"
+        ],
+        "agencies_per_100k": 1.2023999903808,
+        "latest_sales_per_capita": 53.79417316964661,
+        "avg_sales_per_capita": 59.985691440114465
+      },
+      {
+        "commune": "COPIAPO",
+        "population": 168831,
+        "agencies": 2,
+        "latest_sales": 7199800,
+        "avg_sales": 8480050,
+        "territories": {
+          "Norte": 2
+        },
+        "agency_codes": [
+          "120494",
+          "120496"
+        ],
+        "agencies_per_100k": 1.1846165692319537,
+        "latest_sales_per_capita": 42.64501187578111,
+        "avg_sales_per_capita": 50.228038689577154
+      },
+      {
+        "commune": "VITACURA",
+        "population": 86420,
+        "agencies": 1,
+        "latest_sales": 3669800,
+        "avg_sales": 3913090,
+        "territories": {
+          "RM Norte": 1
+        },
+        "agency_codes": [
+          "113433"
+        ],
+        "agencies_per_100k": 1.157139551029854,
+        "latest_sales_per_capita": 42.46470724369359,
+        "avg_sales_per_capita": 45.27991205739412
+      },
+      {
+        "commune": "LINARES",
+        "population": 96744,
+        "agencies": 1,
+        "latest_sales": 4240300,
+        "avg_sales": 4733710,
+        "territories": {
+          "Sur": 1
+        },
+        "agency_codes": [
+          "107109"
+        ],
+        "agencies_per_100k": 1.033655833953527,
+        "latest_sales_per_capita": 43.8301083271314,
+        "avg_sales_per_capita": 48.93026957744149
+      },
+      {
+        "commune": "QUILLOTA",
+        "population": 96753,
+        "agencies": 1,
+        "latest_sales": 3793000,
+        "avg_sales": 4201260,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "105202"
+        ],
+        "agencies_per_100k": 1.0335596829038893,
+        "latest_sales_per_capita": 39.20291877254452,
+        "avg_sales_per_capita": 43.42252953396794
+      },
+      {
+        "commune": "HUECHURABA",
+        "population": 101808,
+        "agencies": 1,
+        "latest_sales": 3378100,
+        "avg_sales": 3977860,
+        "territories": {
+          "RM Norte": 1
+        },
+        "agency_codes": [
+          "119402"
+        ],
+        "agencies_per_100k": 0.9822410812509822,
+        "latest_sales_per_capita": 33.181085965739435,
+        "avg_sales_per_capita": 39.072175074650325
+      },
+      {
+        "commune": "LA CISTERNA",
+        "population": 103157,
+        "agencies": 1,
+        "latest_sales": 3768800,
+        "avg_sales": 3667140,
+        "territories": {
+          "RM Sur": 1
+        },
+        "agency_codes": [
+          "113872"
+        ],
+        "agencies_per_100k": 0.9693961631299863,
+        "latest_sales_per_capita": 36.53460259604292,
+        "avg_sales_per_capita": 35.54911445660498
+      },
+      {
+        "commune": "LOS ANGELES",
+        "population": 219441,
+        "agencies": 2,
+        "latest_sales": 6516100,
+        "avg_sales": 7568660,
+        "territories": {
+          "Sur": 2
+        },
+        "agency_codes": [
+          "122152",
+          "108220"
+        ],
+        "agencies_per_100k": 0.9114067106876108,
+        "latest_sales_per_capita": 29.694086337557703,
+        "avg_sales_per_capita": 34.49063757456446
+      },
+      {
+        "commune": "RANCAGUA",
+        "population": 257744,
+        "agencies": 2,
+        "latest_sales": 8550800,
+        "avg_sales": 9346080,
+        "territories": {
+          "Sur": 2
+        },
+        "agency_codes": [
+          "119938",
+          "123344"
+        ],
+        "agencies_per_100k": 0.7759637469737414,
+        "latest_sales_per_capita": 33.17555403811534,
+        "avg_sales_per_capita": 36.26109628158172
+      },
+      {
+        "commune": "PUNTA ARENAS",
+        "population": 132363,
+        "agencies": 1,
+        "latest_sales": 3510700,
+        "avg_sales": 3919740,
+        "territories": {
+          "Sur": 1
+        },
+        "agency_codes": [
+          "117194"
+        ],
+        "agencies_per_100k": 0.7554981376970905,
+        "latest_sales_per_capita": 26.52327312013176,
+        "avg_sales_per_capita": 29.61356270256794
+      },
+      {
+        "commune": "ANTOFAGASTA",
+        "population": 401096,
+        "agencies": 3,
+        "latest_sales": 14629700,
+        "avg_sales": 16156690,
+        "territories": {
+          "Norte": 3
+        },
+        "agency_codes": [
+          "119969",
+          "121100",
+          "102107"
+        ],
+        "agencies_per_100k": 0.7479506153140396,
+        "latest_sales_per_capita": 36.47431038953268,
+        "avg_sales_per_capita": 40.281354089793965
+      },
+      {
+        "commune": "MELIPILLA",
+        "population": 136325,
+        "agencies": 1,
+        "latest_sales": 6582400,
+        "avg_sales": 7203460,
+        "territories": {
+          "RM Sur": 1
+        },
+        "agency_codes": [
+          "122003"
+        ],
+        "agencies_per_100k": 0.7335411699981661,
+        "latest_sales_per_capita": 48.28461397395929,
+        "avg_sales_per_capita": 52.8403447643499
+      },
+      {
+        "commune": "PUERTO MONTT",
+        "population": 277040,
+        "agencies": 2,
+        "latest_sales": 7698200,
+        "avg_sales": 8249620,
+        "territories": {
+          "Sur": 2
+        },
+        "agency_codes": [
+          "110263",
+          "118027"
+        ],
+        "agencies_per_100k": 0.721917412647993,
+        "latest_sales_per_capita": 27.7873231302339,
+        "avg_sales_per_capita": 29.777721628645683
+      },
+      {
+        "commune": "VILLA ALEMANA",
+        "population": 139571,
+        "agencies": 1,
+        "latest_sales": 3554500,
+        "avg_sales": 3801660,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "123282"
+        ],
+        "agencies_per_100k": 0.7164812174448847,
+        "latest_sales_per_capita": 25.467324874078425,
+        "avg_sales_per_capita": 27.238179851115202
+      },
+      {
+        "commune": "SANTIAGO",
+        "population": 438856,
+        "agencies": 3,
+        "latest_sales": 19019700,
+        "avg_sales": 20211510,
+        "territories": {
+          "RM Norte": 3
+        },
+        "agency_codes": [
+          "113631",
+          "123697",
+          "113980"
+        ],
+        "agencies_per_100k": 0.6835955301966932,
+        "latest_sales_per_capita": 43.339273018940155,
+        "avg_sales_per_capita": 46.054992981752555
+      },
+      {
+        "commune": "RECOLETA",
+        "population": 154615,
+        "agencies": 1,
+        "latest_sales": 7301000,
+        "avg_sales": 7522600,
+        "territories": {
+          "RM Norte": 1
+        },
+        "agency_codes": [
+          "120148"
+        ],
+        "agencies_per_100k": 0.6467677780292985,
+        "latest_sales_per_capita": 47.220515473919086,
+        "avg_sales_per_capita": 48.653752870032015
+      },
+      {
+        "commune": "CURICO",
+        "population": 159968,
+        "agencies": 1,
+        "latest_sales": 3543000,
+        "avg_sales": 3969350,
+        "territories": {
+          "Sur": 1
+        },
+        "agency_codes": [
+          "120276"
+        ],
+        "agencies_per_100k": 0.625125025005001,
+        "latest_sales_per_capita": 22.148179635927185,
+        "avg_sales_per_capita": 24.81340018003601
+      },
+      {
+        "commune": "QUILPUE",
+        "population": 162559,
+        "agencies": 1,
+        "latest_sales": 3563600,
+        "avg_sales": 4209860,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "115182"
+        ],
+        "agencies_per_100k": 0.6151612645254954,
+        "latest_sales_per_capita": 21.92188682263055,
+        "avg_sales_per_capita": 25.897428010753018
+      },
+      {
+        "commune": "VALDIVIA",
+        "population": 170043,
+        "agencies": 1,
+        "latest_sales": 3772600,
+        "avg_sales": 3927540,
+        "territories": {
+          "Sur": 1
+        },
+        "agency_codes": [
+          "118161"
+        ],
+        "agencies_per_100k": 0.5880865428156408,
+        "latest_sales_per_capita": 22.186152914262863,
+        "avg_sales_per_capita": 23.09733420370142
+      },
+      {
+        "commune": "IQUIQUE",
+        "population": 199587,
+        "agencies": 1,
+        "latest_sales": 2982300,
+        "avg_sales": 3751030,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "118503"
+        ],
+        "agencies_per_100k": 0.5010346365244229,
+        "latest_sales_per_capita": 14.942355965067865,
+        "avg_sales_per_capita": 18.79395952642206
+      },
+      {
+        "commune": "QUILICURA",
+        "population": 205624,
+        "agencies": 1,
+        "latest_sales": 3057500,
+        "avg_sales": 3714530,
+        "territories": {
+          "RM Norte": 1
+        },
+        "agency_codes": [
+          "120670"
+        ],
+        "agencies_per_100k": 0.48632455355405985,
+        "latest_sales_per_capita": 14.86937322491538,
+        "avg_sales_per_capita": 18.06467143913162
+      },
+      {
+        "commune": "PEÑALOLEN",
+        "population": 236478,
+        "agencies": 1,
+        "latest_sales": 3833600,
+        "avg_sales": 4118760,
+        "territories": {
+          "RM Norte": 1
+        },
+        "agency_codes": [
+          "123966"
+        ],
+        "agencies_per_100k": 0.4228723179323235,
+        "latest_sales_per_capita": 16.211233180253554,
+        "avg_sales_per_capita": 17.41709588206937
+      },
+      {
+        "commune": "LA SERENA",
+        "population": 250141,
+        "agencies": 1,
+        "latest_sales": 3204900,
+        "avg_sales": 3675780,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "119418"
+        ],
+        "agencies_per_100k": 0.39977452716667794,
+        "latest_sales_per_capita": 12.812373821164863,
+        "avg_sales_per_capita": 14.694832114687316
+      },
+      {
+        "commune": "PUENTE ALTO",
+        "population": 568086,
+        "agencies": 2,
+        "latest_sales": 8010100,
+        "avg_sales": 9074490,
+        "territories": {
+          "RM Sur": 2
+        },
+        "agency_codes": [
+          "115111",
+          "114571"
+        ],
+        "agencies_per_100k": 0.35205937129237475,
+        "latest_sales_per_capita": 14.100153849945254,
+        "avg_sales_per_capita": 15.973796220994709
+      },
+      {
+        "commune": "VALPARAISO",
+        "population": 284938,
+        "agencies": 1,
+        "latest_sales": 4202900,
+        "avg_sales": 4507380,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "105291"
+        ],
+        "agencies_per_100k": 0.35095354077027285,
+        "latest_sales_per_capita": 14.750226365033797,
+        "avg_sales_per_capita": 15.818809705971123
+      },
+      {
+        "commune": "LAS CONDES",
+        "population": 296134,
+        "agencies": 1,
+        "latest_sales": 4042800,
+        "avg_sales": 4749010,
+        "territories": {
+          "RM Norte": 1
+        },
+        "agency_codes": [
+          "113395"
+        ],
+        "agencies_per_100k": 0.33768496694064176,
+        "latest_sales_per_capita": 13.651927843476264,
+        "avg_sales_per_capita": 16.03669284850777
+      },
+      {
+        "commune": "VIÑA DEL MAR",
+        "population": 334871,
+        "agencies": 1,
+        "latest_sales": 5086500,
+        "avg_sales": 5232610,
+        "territories": {
+          "Norte": 1
+        },
+        "agency_codes": [
+          "105527"
+        ],
+        "agencies_per_100k": 0.29862245461685244,
+        "latest_sales_per_capita": 15.1894311540862,
+        "avg_sales_per_capita": 15.625748422526884
+      },
+      {
+        "commune": "LA FLORIDA",
+        "population": 374836,
+        "agencies": 1,
+        "latest_sales": 3040200,
+        "avg_sales": 3698740,
+        "territories": {
+          "RM Sur": 1
+        },
+        "agency_codes": [
+          "119253"
+        ],
+        "agencies_per_100k": 0.26678333991398906,
+        "latest_sales_per_capita": 8.110747100065096,
+        "avg_sales_per_capita": 9.867622106734679
+      },
+      {
+        "commune": "MAIPU",
+        "population": 503635,
+        "agencies": 1,
+        "latest_sales": 3155800,
+        "avg_sales": 3589750,
+        "territories": {
+          "RM Sur": 1
+        },
+        "agency_codes": [
+          "119739"
+        ],
+        "agencies_per_100k": 0.19855649428653688,
+        "latest_sales_per_capita": 6.266045846694531,
+        "avg_sales_per_capita": 7.127681753650958
+      }
+    ]
+  },
   "weekly_zone_evolution": [
     {
       "zone": "Norte",

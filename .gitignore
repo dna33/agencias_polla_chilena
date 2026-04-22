@@ -208,6 +208,8 @@ data/
 !docs/data/
 !docs/data/dashboard.json
 input/*.xlsx
+input/*.csv
+input/*.pptx
 
 # Marimo
 marimo/_static/

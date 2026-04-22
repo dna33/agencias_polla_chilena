@@ -8,6 +8,7 @@ from pathlib import Path
 from math import sqrt
 from statistics import mean, median
 
+from app.census_population import population_by_commune
 from app.grouped_sales import parse_weekly_zone_evolution
 from app.jackpot_pdf import parse_jackpot_pdfs
 from app.weekly_sales import WeeklyAgencySale, parse_weekly_workbooks
@@ -62,6 +63,7 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
     agency_payload.sort(key=lambda item: item["latest_sales"], reverse=True)
     time_series_summary = summarize_time_series(agency_payload, weeks)
     jackpots = jackpot_payload(input_dir)
+    top50_population = top50_population_context(agency_payload, latest_week, input_dir)
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -79,6 +81,7 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
         "time_series_summary": time_series_summary,
         "weekly_sales_with_jackpots": weekly_sales_with_jackpots(rows, jackpots),
         "weekly_jackpots": jackpots,
+        "top50_population_context": top50_population,
         "weekly_zone_evolution": weekly_zone_evolution(paths),
         "priorities": priorities(agency_payload),
         "agencies": agency_payload,
@@ -142,6 +145,64 @@ def weekly_zone_evolution(paths: list[Path]) -> list[dict]:
                 for row in rows
             ]
     return []
+
+
+def top50_population_context(agencies: list[dict], latest_week: int | None, input_dir: Path | str) -> dict:
+    top50 = sorted(
+        [agency for agency in agencies if agency.get("time_series", {}).get("avg_sales", 0) > 0],
+        key=lambda agency: agency["time_series"]["avg_sales"],
+        reverse=True,
+    )[:50]
+    commune_names = {agency.get("comuna") for agency in top50 if agency.get("comuna")}
+    populations = population_by_commune(input_dir, commune_names)
+
+    by_commune: dict[str, dict] = {}
+    for agency in top50:
+        commune = agency.get("comuna") or "Sin comuna"
+        snapshot = next((point for point in agency.get("history", []) if point["week"] == latest_week), None)
+        if commune not in by_commune:
+            by_commune[commune] = {
+                "commune": commune,
+                "population": populations.get(commune),
+                "agencies": 0,
+                "latest_sales": 0,
+                "avg_sales": 0,
+                "territories": {},
+                "agency_codes": [],
+            }
+        item = by_commune[commune]
+        item["agencies"] += 1
+        item["latest_sales"] += int(snapshot["sales"]) if snapshot else 0
+        item["avg_sales"] += int(agency.get("time_series", {}).get("avg_sales", 0))
+        territory = agency.get("territory") or "Sin territorio"
+        item["territories"][territory] = item["territories"].get(territory, 0) + 1
+        item["agency_codes"].append(agency["lotos_code"])
+
+    rows = []
+    for item in by_commune.values():
+        population = item["population"] or 0
+        rows.append({
+            **item,
+            "agencies_per_100k": item["agencies"] / population * 100_000 if population else None,
+            "latest_sales_per_capita": item["latest_sales"] / population if population else None,
+            "avg_sales_per_capita": item["avg_sales"] / population if population else None,
+        })
+    rows.sort(key=lambda item: item["agencies_per_100k"] or 0, reverse=True)
+
+    covered_population = sum(item["population"] or 0 for item in rows)
+    top50_latest_sales = sum(item["latest_sales"] for item in rows)
+    top50_avg_sales = sum(item["avg_sales"] for item in rows)
+    return {
+        "source_file": "personas_censo2024.csv",
+        "top_agencies": len(top50),
+        "communes": len(rows),
+        "covered_population": covered_population,
+        "latest_sales": top50_latest_sales,
+        "avg_sales": top50_avg_sales,
+        "latest_sales_per_capita": top50_latest_sales / covered_population if covered_population else None,
+        "avg_sales_per_capita": top50_avg_sales / covered_population if covered_population else None,
+        "rows": rows,
+    }
 
 
 def group_by_lotos(rows: list[WeeklyAgencySale]) -> dict[str, list[WeeklyAgencySale]]:

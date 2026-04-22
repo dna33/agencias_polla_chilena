@@ -230,6 +230,7 @@ function renderSegmentComparison() {
       ${renderSegmentCard("Red completa", "Todas las agencias con historial disponible", fullMetrics, "segmentMapFull")}
       ${renderSegmentCard("Top 50 promedio", "50 agencias con mayor venta promedio semanal", topMetrics, "segmentMapTop50")}
     </div>
+    ${renderTop50PopulationContext()}
   `;
 
   if (!window.L) {
@@ -241,6 +242,58 @@ function renderSegmentComparison() {
 
   state.maps.segmentFull = initSegmentMap("segmentMapFull", segmentMapPoints(full));
   state.maps.segmentTop50 = initSegmentMap("segmentMapTop50", segmentMapPoints(top50));
+}
+
+function renderTop50PopulationContext() {
+  const context = state.data.top50_population_context;
+  if (!context || !context.rows?.length) {
+    return "<div class='population-context'><p class='muted'>Sin cruce de poblacion comunal para el Top 50.</p></div>";
+  }
+  const rows = [...context.rows].sort((a, b) => (b.agencies_per_100k || 0) - (a.agencies_per_100k || 0));
+  const maxDensity = Math.max(...rows.map((row) => row.agencies_per_100k || 0), 1);
+  const maxSalesPerCapita = Math.max(...rows.map((row) => row.avg_sales_per_capita || 0), 1);
+  const topRows = rows.slice(0, 12);
+  return `
+    <div class="population-context">
+      <div class="population-head">
+        <div>
+          <h3>Top 50 y poblacion comunal Censo 2024</h3>
+          <p>${number(context.communes)} comunas · ${number(context.top_agencies)} agencias · ${number(context.covered_population)} habitantes en comunas cubiertas</p>
+        </div>
+        <span>Fuente: ${escapeHtml(context.source_file)}</span>
+      </div>
+      <div class="population-summary">
+        ${segmentMetric("Venta prom. Top 50 / habitante", money(context.avg_sales_per_capita || 0))}
+        ${segmentMetric("Venta S" + state.week + " / habitante", money(context.latest_sales_per_capita || 0))}
+        ${segmentMetric("Comunas Top 50", number(context.communes))}
+        ${segmentMetric("Poblacion cubierta", number(context.covered_population))}
+      </div>
+      <div class="population-table">
+        <div class="population-row head">
+          <span>Comuna</span>
+          <span>Top 50</span>
+          <span>Poblacion</span>
+          <span>Ag. / 100k</span>
+          <span>Prom. / hab.</span>
+        </div>
+        ${topRows.map((row) => `
+          <div class="population-row">
+            <strong>${escapeHtml(row.commune)}</strong>
+            <span>${number(row.agencies)}</span>
+            <span>${number(row.population || 0)}</span>
+            <span>
+              <i style="width:${Math.max(4, ((row.agencies_per_100k || 0) / maxDensity) * 100)}%"></i>
+              ${row.agencies_per_100k === null ? "s/d" : round(row.agencies_per_100k).toFixed(1)}
+            </span>
+            <span>
+              <i class="green" style="width:${Math.max(4, ((row.avg_sales_per_capita || 0) / maxSalesPerCapita) * 100)}%"></i>
+              ${money(row.avg_sales_per_capita || 0)}
+            </span>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function topAverageAgencies(agencies) {
