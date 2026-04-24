@@ -1,16 +1,10 @@
 const state = {
   data: null,
   week: null,
-  filters: {
-    search: "",
-    territory: "",
-    executive: "",
-    priority: "",
-    trajectory: "",
-  },
   weeklyView: "indexed",
   maps: {},
   selectedAgency: null,
+  selectedCommune: null,
 };
 
 const priorityLabels = {
@@ -42,26 +36,6 @@ function bindEvents() {
   document.getElementById("refreshButton").addEventListener("click", loadData);
   document.getElementById("weekSelect").addEventListener("change", (event) => {
     state.week = Number(event.target.value);
-    render();
-  });
-  document.getElementById("searchInput").addEventListener("input", (event) => {
-    state.filters.search = event.target.value.trim().toLowerCase();
-    render();
-  });
-  document.getElementById("territorySelect").addEventListener("change", (event) => {
-    state.filters.territory = event.target.value;
-    render();
-  });
-  document.getElementById("executiveSelect").addEventListener("change", (event) => {
-    state.filters.executive = event.target.value;
-    render();
-  });
-  document.getElementById("prioritySelect").addEventListener("change", (event) => {
-    state.filters.priority = event.target.value;
-    render();
-  });
-  document.getElementById("trajectorySelect").addEventListener("change", (event) => {
-    state.filters.trajectory = event.target.value;
     render();
   });
   document.getElementById("assistantToggle").addEventListener("click", () => {
@@ -107,6 +81,7 @@ async function loadData() {
     state.data = await response.json();
     state.week = state.data.latest_week;
     state.selectedAgency = state.data.agencies[0] || null;
+    state.selectedCommune = lowestCommuneName();
     populateControls();
     render();
     resetChat();
@@ -117,7 +92,7 @@ async function loadData() {
 
 function showLoadError(error) {
   const message = `No se pudo cargar la data del dashboard. Usa un servidor local o GitHub Pages; abrir index.html directo como archivo puede bloquear data/dashboard.json. Detalle: ${error.message}`;
-  ["segmentComparison", "seriesNarrative", "territoryChart", "trendChart", "jackpotChart", "weeklyZoneChart", "agencyDetail"].forEach((id) => {
+  ["segmentComparison", "seriesNarrative", "territoryChart", "trendChart", "jackpotChart", "weeklyZoneChart", "communeMarketPanel", "agencyDetail"].forEach((id) => {
     const element = document.getElementById(id);
     if (element) element.innerHTML = `<p class="load-error">${escapeHtml(message)}</p>`;
   });
@@ -125,13 +100,6 @@ function showLoadError(error) {
 
 function populateControls() {
   fillSelect("weekSelect", state.data.weeks.map(String), state.week, false);
-  fillSelect("territorySelect", uniqueValues("territory"), state.filters.territory, true);
-  fillSelect("executiveSelect", uniqueValues("executive"), state.filters.executive, true);
-}
-
-function uniqueValues(field) {
-  return [...new Set(state.data.agencies.map((agency) => agency[field]).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "es"));
 }
 
 function fillSelect(id, values, selectedValue, includeAll) {
@@ -158,6 +126,7 @@ function render() {
   safeRender("territoryMaps", () => renderTerritoryMaps(agencies));
   safeRender("segmentComparison", renderSegmentComparison);
   safeRender("weeklyZoneChart", renderWeeklyZoneChart);
+  safeRender("communeMarketPanel", renderCommuneMarketPanel);
   safeRender("agencyTable", () => renderTable(agencies));
   safeRender("agencyDetail", () => renderDetail(state.selectedAgency));
 }
@@ -175,25 +144,7 @@ function safeRender(targetId, callback) {
 }
 
 function filteredAgencies() {
-  return state.data.agencies.filter((agency) => {
-    const snapshot = weekSnapshot(agency, state.week);
-    if (!snapshot) return false;
-    if (state.filters.territory && snapshot.territory !== state.filters.territory) return false;
-    if (state.filters.executive && snapshot.executive !== state.filters.executive) return false;
-    if (state.filters.priority && agency.priority !== state.filters.priority) return false;
-    if (state.filters.trajectory && agency.time_series?.trajectory !== state.filters.trajectory) return false;
-    if (state.filters.search) {
-      const haystack = [
-        agency.lotos_code,
-        agency.agent_name,
-        agency.comuna,
-        agency.address,
-        agency.rubro,
-      ].join(" ").toLowerCase();
-      if (!haystack.includes(state.filters.search)) return false;
-    }
-    return true;
-  });
+  return state.data.agencies.filter((agency) => weekSnapshot(agency, state.week));
 }
 
 function weekSnapshot(agency, week) {
@@ -299,6 +250,217 @@ function renderTop50PopulationContext() {
         `).join("")}
       </div>
     </div>
+  `;
+}
+
+function lowestCommuneName() {
+  const rows = state.data?.commune_market_context?.rows || [];
+  return rows[0]?.commune || null;
+}
+
+function renderCommuneMarketPanel() {
+  const container = document.getElementById("communeMarketPanel");
+  if (!container) return;
+  const context = state.data?.commune_market_context;
+  if (!context?.rows?.length) {
+    container.innerHTML = "<p class='muted'>Sin cruce comunal completo entre ventas y Censo 2024.</p>";
+    return;
+  }
+  const rows = [...context.rows];
+  if (!state.selectedCommune || !rows.find((row) => row.commune === state.selectedCommune)) {
+    state.selectedCommune = rows[0].commune;
+  }
+  const selected = rows.find((row) => row.commune === state.selectedCommune) || rows[0];
+  const orderedRows = [
+    selected,
+    ...rows.filter((row) => row.commune !== selected.commune),
+  ];
+  const maxOverallPer100k = Math.max(...rows.map((row) => row.overall_avg_sales_per_100k_adults || 0), 1);
+  const benchmark = context.overall_avg_sales_per_100k_adults || 0;
+  container.innerHTML = `
+    <div class="commune-market-summary">
+      ${segmentMetric("Comunas con cruce", number(context.communes || 0))}
+      ${segmentMetric("Poblacion 18+ cubierta", number(context.covered_population || 0))}
+      ${segmentMetric("Prom. red / 100k", money(benchmark))}
+      ${segmentMetric("Bajo benchmark ultimo mes", number(context.below_latest_benchmark_communes || 0))}
+    </div>
+    <p class="commune-market-note">${escapeHtml(context.method_note || "")}</p>
+    <div class="commune-market-layout">
+      <div class="commune-market-detail">
+        ${renderCommuneMarketDetail(selected, context)}
+      </div>
+      <div class="commune-market-list">
+        <div class="commune-market-head">
+          <span>Comuna</span>
+          <span>Ag.</span>
+          <span>Pob. 18+</span>
+          <span>Prom. / 100k</span>
+          <span>Ultimo mes / 100k</span>
+        </div>
+        ${orderedRows.map((row) => {
+          const width = Math.max(4, ((row.overall_avg_sales_per_100k_adults || 0) / maxOverallPer100k) * 100);
+          const isLow = (row.gap_vs_latest_month_benchmark_per_100k || 0) < 0;
+          return `
+            <button class="commune-market-row ${row.commune === selected.commune ? "active" : ""}" data-commune="${escapeHtml(row.commune)}">
+              <strong>${escapeHtml(row.commune)}</strong>
+              <span>${number(row.agencies || 0)}</span>
+              <span>${number(row.population || 0)}</span>
+              <span>
+                <i style="width:${width}%"></i>
+                ${money(row.overall_avg_sales_per_100k_adults || 0)}
+              </span>
+              <span class="${isLow ? "red" : "green"}">
+                ${money(row.latest_month_avg_sales_per_100k_adults || 0)}
+              </span>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+  container.querySelectorAll(".commune-market-row[data-commune]").forEach((row) => {
+    row.addEventListener("click", () => {
+      state.selectedCommune = row.dataset.commune;
+      renderCommuneMarketPanel();
+    });
+  });
+  renderCommuneMarketMap(selected);
+  const selectedRow = container.querySelector(".commune-market-row.active");
+  if (selectedRow) {
+    selectedRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+}
+
+function renderCommuneMarketDetail(row, context) {
+  if (!row) return "<p class='muted'>Selecciona una comuna.</p>";
+  const agencies = communeAgencies(row.commune);
+  const latestSeries = row.monthly_series[row.monthly_series.length - 1];
+  const gap = row.gap_vs_latest_month_benchmark_per_100k;
+  return `
+    <div class="commune-market-detail-head">
+      <div>
+        <h3>${escapeHtml(row.commune)}</h3>
+        <p>${number(agencies.length)} agencias georreferenciadas en la comuna · ${escapeHtml(row.latest_month_label || "-")}</p>
+      </div>
+      <span>Ultimo mes: ${escapeHtml(row.latest_month_label || "-")}</span>
+    </div>
+    <div class="commune-market-stats">
+      ${segmentMetric("Poblacion mayor de 18", number(row.population || 0))}
+      ${segmentMetric("Prom. ventas / habitante", money(row.overall_avg_sales_per_adult || 0))}
+      ${segmentMetric("Prom. ventas / 100k", money(row.overall_avg_sales_per_100k_adults || 0))}
+      ${segmentMetric("Ultimo mes / 100k", money(row.latest_month_avg_sales_per_100k_adults || 0))}
+    </div>
+    <div class="commune-market-map-card">
+      <div class="commune-market-map-head">
+        <strong>Mapa de agencias en la comuna</strong>
+        <span>${number(agencies.length)} puntos con coordenadas</span>
+      </div>
+      <div id="communeMarketMap" class="leaflet-map commune-market-map" aria-label="Mapa comunal"></div>
+    </div>
+    <div class="commune-market-series-wrap">
+      ${communeMonthlySeriesChart(row.monthly_series, context.months || [])}
+    </div>
+    <div class="commune-market-month-table">
+      <div class="commune-market-month-head">
+        <span>Mes</span>
+        <span>Prom. semanal</span>
+        <span>/ hab. 18+</span>
+        <span>/ 100k</span>
+      </div>
+      ${row.monthly_series.map((item) => `
+        <div class="commune-market-month-row">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${money(item.avg_sales || 0)}</span>
+          <span>${money(item.avg_sales_per_adult || 0)}</span>
+          <span>${money(item.avg_sales_per_100k_adults || 0)}</span>
+        </div>
+      `).join("")}
+    </div>
+    <p class="commune-market-footnote">
+      ${escapeHtml(row.latest_month_label || "-")}: ${money(latestSeries?.avg_sales || 0)} promedio semanal total en la comuna. Gap vs benchmark red del ultimo mes: ${gap === null || gap === undefined ? "s/d" : signedMoney(gap)} por 100k.
+    </p>
+  `;
+}
+
+function communeAgencies(commune) {
+  return (state.data?.agencies || []).filter((agency) =>
+    agency.comuna === commune &&
+    agency.latitude !== null &&
+    agency.longitude !== null
+  );
+}
+
+function renderCommuneMarketMap(row) {
+  if (state.maps.communeMarket && typeof state.maps.communeMarket.remove === "function") {
+    state.maps.communeMarket.remove();
+    delete state.maps.communeMarket;
+  }
+  const element = document.getElementById("communeMarketMap");
+  if (!element || !row || !window.L) return;
+  const agencies = communeAgencies(row.commune);
+  if (!agencies.length) {
+    element.outerHTML = "<p class='muted'>No hay agencias georreferenciadas para esta comuna.</p>";
+    return;
+  }
+  const points = agencies.map((agency) => ({
+    lat: agency.latitude,
+    lon: agency.longitude,
+    sales: weekSnapshot(agency, state.week)?.sales || 0,
+    zone: agency.territory || "Sin territorio",
+    code: agency.lotos_code,
+    name: agency.agent_name || "Sin nombre",
+    comuna: agency.comuna || row.commune,
+    history: agency.history || [],
+  }));
+  const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
+  state.maps.communeMarket = initLeafletMap("communeMarketMap", bounds, points, 11);
+}
+
+function communeMonthlySeriesChart(series, months) {
+  const ordered = (months || []).map((month) => {
+    const point = (series || []).find((item) => item.month === month.month);
+    return point ? { ...point, benchmarkLabel: month.label } : {
+      month: month.month,
+      label: month.label,
+      avg_sales: null,
+      avg_sales_per_100k_adults: null,
+      benchmark_avg_sales_per_100k_adults: month.avg_sales_per_100k_adults,
+    };
+  }).filter((item) => item.benchmark_avg_sales_per_100k_adults !== null || item.avg_sales_per_100k_adults !== null);
+  if (!ordered.length) return "<p class='muted'>Sin serie mensual.</p>";
+  const width = 560;
+  const height = 220;
+  const margin = { top: 22, right: 18, bottom: 42, left: 72 };
+  const valuePoints = ordered.flatMap((item) => [item.avg_sales_per_100k_adults || 0, item.benchmark_avg_sales_per_100k_adults || 0]);
+  const maxValue = Math.max(...valuePoints, 1);
+  const x = (index) => margin.left + (index / Math.max(ordered.length - 1, 1)) * (width - margin.left - margin.right);
+  const y = (value) => margin.top + (1 - value / maxValue) * (height - margin.top - margin.bottom);
+  const communePath = ordered.reduce((path, item, index) => {
+    if (item.avg_sales_per_100k_adults === null) return path;
+    return `${path}${path ? " L" : "M"}${x(index)},${y(item.avg_sales_per_100k_adults)}`;
+  }, "");
+  const benchmarkPath = ordered.reduce((path, item, index) => {
+    if (item.benchmark_avg_sales_per_100k_adults === null) return path;
+    return `${path}${path ? " L" : "M"}${x(index)},${y(item.benchmark_avg_sales_per_100k_adults)}`;
+  }, "");
+  return `
+    <svg class="line-svg" viewBox="0 0 ${width} ${height}" aria-label="Serie mensual relativa por comuna">
+      <line class="grid-line" x1="${margin.left}" y1="${y(maxValue)}" x2="${width - margin.right}" y2="${y(maxValue)}"></line>
+      <line class="grid-line" x1="${margin.left}" y1="${y(0)}" x2="${width - margin.right}" y2="${y(0)}"></line>
+      <text class="axis-label" x="${margin.left - 8}" y="${y(maxValue) + 4}" text-anchor="end">${shortMoney(maxValue)}</text>
+      <text class="axis-label" x="${margin.left - 8}" y="${y(0) + 4}" text-anchor="end">$0</text>
+      <path class="spark-path-network" d="${benchmarkPath}"></path>
+      <path class="spark-path" d="${communePath}"></path>
+      ${ordered.map((item, index) => item.benchmark_avg_sales_per_100k_adults !== null
+        ? `<circle class="spark-dot-network" cx="${x(index)}" cy="${y(item.benchmark_avg_sales_per_100k_adults)}" r="3"><title>${escapeHtml(item.label)} benchmark red: ${money(item.benchmark_avg_sales_per_100k_adults)}/100k</title></circle>`
+        : "").join("")}
+      ${ordered.map((item, index) => item.avg_sales_per_100k_adults !== null
+        ? `<circle class="spark-dot" cx="${x(index)}" cy="${y(item.avg_sales_per_100k_adults)}" r="4"><title>${escapeHtml(item.label)} comuna: ${money(item.avg_sales_per_100k_adults)}/100k · promedio semanal ${money(item.avg_sales || 0)}</title></circle>`
+        : "").join("")}
+      ${ordered.map((item, index) => `<text class="axis-label" x="${x(index)}" y="${height - 12}" text-anchor="middle">${escapeHtml(item.label.split(" ")[0])}</text>`).join("")}
+      <text class="axis-title" x="${margin.left}" y="16">Promedio semanal del mes por 100.000 hab. 18+</text>
+    </svg>
+    <div class="spark-legend"><span><i class="agency"></i>Comuna seleccionada</span><span><i class="network-gray"></i>Benchmark red</span></div>
   `;
 }
 
@@ -877,6 +1039,10 @@ function renderWeeklyZoneChart() {
 
   if (state.weeklyView === "smallMultiples") {
     container.innerHTML = renderWeeklySmallMultiples(model);
+  } else if (state.weeklyView === "perAdult") {
+    container.innerHTML = renderWeeklyPopulationLine(model, "sales_per_adult");
+  } else if (state.weeklyView === "per100k") {
+    container.innerHTML = renderWeeklyPopulationLine(model, "sales_per_100k_adults");
   } else if (state.weeklyView === "heatmap") {
     container.innerHTML = renderWeeklyHeatmap(model);
   } else if (state.weeklyView === "change") {
@@ -904,6 +1070,9 @@ function weeklyModel(rows) {
         label: week.label,
         sales: row?.sales || 0,
         communes: row?.communes || 0,
+        populationAdult: row?.population_adult || 0,
+        salesPerAdult: row?.sales_per_adult ?? null,
+        salesPer100kAdults: row?.sales_per_100k_adults ?? null,
       };
     });
     const firstSales = points.find((point) => point.sales > 0)?.sales || 1;
@@ -956,6 +1125,57 @@ function renderWeeklySmallMultiples(model) {
     <div class="small-multiple-grid">
       ${model.byZone.map((zoneData, zoneIndex) => renderSmallMultiple(zoneData, model.weeks, maxSales, zoneIndex)).join("")}
     </div>
+  `;
+}
+
+function renderWeeklyPopulationLine(model, metric) {
+  const isPer100k = metric === "sales_per_100k_adults";
+  const title = isPer100k
+    ? "Venta semanal por cada 100.000 habitantes mayores de 18 anos."
+    : "Venta semanal promedio por habitante mayor de 18 anos.";
+  const valueFor = (point) => isPer100k ? point.salesPer100kAdults : point.salesPerAdult;
+  const values = model.byZone.flatMap((zone) => zone.points.map(valueFor).filter((value) => value !== null));
+  if (!values.length) {
+    return "<p class='muted'>No hay población censal adulta suficiente para normalizar la serie por zona.</p>";
+  }
+
+  const width = 1120;
+  const height = 390;
+  const margin = { top: 28, right: 230, bottom: 58, left: 96 };
+  const maxValue = Math.max(...values, 1);
+  const minValue = Math.min(...values, 0);
+  const yMin = Math.max(0, minValue * 0.92);
+  const yMax = maxValue * 1.08;
+  const x = (index) => margin.left + (index / Math.max(model.weeks.length - 1, 1)) * (width - margin.left - margin.right);
+  const y = (value) => margin.top + ((yMax - value) / Math.max(yMax - yMin, 1)) * (height - margin.top - margin.bottom);
+  const formatter = isPer100k ? money : (value) => `$${round(value).toFixed(0)}`;
+  const tickIndexes = weeklyTickIndexes(model.weeks.length);
+  const gridValues = uniqueSorted([yMin, (yMin + yMax) / 2, yMax]);
+
+  return `
+    <div class="chart-caption">${title} Denominador: poblacion comunal Censo 2024 filtrada a edad &gt; 18; permite comparar intensidad territorial semana a semana.</div>
+    <svg class="line-svg" viewBox="0 0 ${width} ${height}" aria-label="${isPer100k ? "Venta por 100 mil adultos" : "Venta por adulto"} por zona">
+      ${gridValues.map((value) => `
+        <line class="grid-line" x1="${margin.left}" y1="${y(value)}" x2="${width - margin.right}" y2="${y(value)}"></line>
+        <text class="axis-label" x="${margin.left - 10}" y="${y(value) + 4}" text-anchor="end">${formatter(value)}</text>
+      `).join("")}
+      ${tickIndexes.map((index) => `
+        <text class="axis-label" x="${x(index)}" y="${height - 18}" text-anchor="middle">${escapeHtml(model.weeks[index].label)}</text>
+      `).join("")}
+      ${model.byZone.map((zoneData, zoneIndex) => {
+        const available = zoneData.points
+          .map((point, pointIndex) => ({ point, pointIndex, value: valueFor(point) }))
+          .filter((item) => item.value !== null);
+        const path = available.map((item, pathIndex) => `${pathIndex === 0 ? "M" : "L"}${x(item.pointIndex)},${y(item.value)}`).join(" ");
+        const latest = available[available.length - 1];
+        if (!available.length) return "";
+        return `
+          <path class="line-chart-path zone-stroke-${(zoneIndex % 4) + 1}" d="${path}"></path>
+          ${available.map((item) => `<circle class="line-dot zone-fill-${(zoneIndex % 4) + 1}" cx="${x(item.pointIndex)}" cy="${y(item.value)}" r="3.5"><title>${escapeHtml(zoneData.zone)} ${escapeHtml(item.point.label)}: ${formatter(item.value)} · ${money(item.point.sales)} · pob. 18+ ${number(item.point.populationAdult)}</title></circle>`).join("")}
+          <text class="line-end-label" x="${width - margin.right + 12}" y="${safeLabelY(y(latest.value), height)}">${escapeHtml(zoneData.zone)} ${formatter(latest.value)}</text>
+        `;
+      }).join("")}
+    </svg>
   `;
 }
 
@@ -1179,11 +1399,19 @@ function communeSparkline(series) {
   const margin = { top: 18, right: 18, bottom: 38, left: 64 };
   const maxSales = Math.max(...points.map((point) => point.sales), 1);
   const maxPer100k = Math.max(...points.map((point) => point.per100k), 1);
+  const totalPoints = points.map((point) => ({ week: point.week, sales: totalSalesForWeek(point.week) })).filter((point) => point.sales !== null);
+  const maxTotalSales = Math.max(...totalPoints.map((point) => point.sales), 1);
+  const minTotalSales = Math.min(...totalPoints.map((point) => point.sales), 0);
   const x = (index) => margin.left + (index / Math.max(points.length - 1, 1)) * (width - margin.left - margin.right);
   const ySales = (value) => margin.top + (1 - value / maxSales) * (height - margin.top - margin.bottom);
   const yPer100k = (value) => margin.top + (1 - value / maxPer100k) * (height - margin.top - margin.bottom);
+  const yTotal = (value) => margin.top + ((maxTotalSales - value) / Math.max(maxTotalSales - minTotalSales, 1)) * (height - margin.top - margin.bottom);
   const salesPath = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${ySales(point.sales)}`).join(" ");
   const per100kPath = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${yPer100k(point.per100k)}`).join(" ");
+  const totalPath = totalPoints.map((point) => {
+    const index = points.findIndex((item) => item.week === point.week);
+    return `${index === 0 ? "M" : "L"}${x(index)},${yTotal(point.sales)}`;
+  }).join(" ");
   const ticks = points.length <= 5 ? points.map((_, index) => index) : [0, points.length - 1];
   return `
     <div class="sparkline detail">
@@ -1193,11 +1421,12 @@ function communeSparkline(series) {
         <text class="axis-label" x="${margin.left - 8}" y="${ySales(maxSales) + 4}" text-anchor="end">${shortMoney(maxSales)}</text>
         <text class="axis-label" x="${margin.left - 8}" y="${ySales(0) + 4}" text-anchor="end">$0</text>
         <path class="spark-path" d="${salesPath}"></path>
-        <path class="spark-path-total" d="${per100kPath}"></path>
+        <path class="spark-path-per100k" d="${per100kPath}"></path>
+        ${totalPath ? `<path class="spark-path-network" d="${totalPath}"><title>Venta total red, escala propia</title></path>` : ""}
         ${points.map((point, index) => `<circle class="spark-dot" cx="${x(index)}" cy="${ySales(point.sales)}" r="3.8"><title>S${point.week}: ${money(point.sales)} · ${money(point.perCapita)}/hab · ${money(point.per100k)}/100k</title></circle>`).join("")}
         ${ticks.map((index) => `<text class="axis-label" x="${x(index)}" y="${height - 10}" text-anchor="middle">S${points[index].week}</text>`).join("")}
       </svg>
-      <div class="spark-legend"><span><i class="agency"></i>Venta comuna Top 50</span><span><i class="network"></i>Venta / 100k hab. (escala propia)</span></div>
+      <div class="spark-legend"><span><i class="agency"></i>Venta comuna Top 50</span><span><i class="per100k"></i>Venta / 100k hab. (escala propia)</span><span><i class="network-gray"></i>Total red (escala propia)</span></div>
       <div class="spark-values">${points.map((point) => `<span>S${point.week}: ${money(point.sales)} · ${money(point.per100k)}/100k</span>`).join("")}</div>
     </div>
   `;

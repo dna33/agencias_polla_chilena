@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from math import sqrt
 from statistics import mean, median
+import re
 
 from app.census_population import population_by_commune
 from app.grouped_sales import parse_weekly_zone_evolution
@@ -16,6 +17,7 @@ from app.weekly_sales import WeeklyAgencySale, parse_weekly_workbooks
 
 DEFAULT_INPUT_DIR = Path("input")
 DEFAULT_OUTPUT_PATH = Path("docs/data/dashboard.json")
+PDF_YEAR_RE = re.compile(r"Quick Report LOTO_(\d{4})_\d{2}_\d{2}\.pdf$", re.IGNORECASE)
 
 
 def main() -> None:
@@ -64,6 +66,7 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
     time_series_summary = summarize_time_series(agency_payload, weeks)
     jackpots = jackpot_payload(input_dir)
     top50_population = top50_population_context(agency_payload, latest_week, input_dir)
+    commune_market = commune_market_context(rows, weeks, latest_week, input_dir)
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -82,7 +85,8 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
         "weekly_sales_with_jackpots": weekly_sales_with_jackpots(rows, jackpots),
         "weekly_jackpots": jackpots,
         "top50_population_context": top50_population,
-        "weekly_zone_evolution": weekly_zone_evolution(paths),
+        "commune_market_context": commune_market,
+        "weekly_zone_evolution": weekly_zone_evolution(paths, input_dir),
         "priorities": priorities(agency_payload),
         "agencies": agency_payload,
     }
@@ -130,20 +134,33 @@ def weekly_sales_with_jackpots(rows: list[WeeklyAgencySale], jackpots: list[dict
     ]
 
 
-def weekly_zone_evolution(paths: list[Path]) -> list[dict]:
+def weekly_zone_evolution(paths: list[Path], input_dir: Path | str = DEFAULT_INPUT_DIR) -> list[dict]:
     for path in paths:
         rows = parse_weekly_zone_evolution(path)
         if rows:
-            return [
-                {
+            all_communes = {
+                commune
+                for row in rows
+                for commune in row.commune_names
+            }
+            populations = population_by_commune(input_dir, all_communes)
+            payload = []
+            for row in rows:
+                population_adult = sum(populations.get(commune, 0) for commune in row.commune_names)
+                payload.append({
                     "zone": row.zone,
                     "week": row.week,
                     "week_label": row.week_label,
                     "sales": row.sales,
                     "communes": row.communes,
-                }
-                for row in rows
-            ]
+                    "population_adult": population_adult,
+                    "missing_population_communes": [
+                        commune for commune in row.commune_names if commune not in populations
+                    ],
+                    "sales_per_adult": row.sales / population_adult if population_adult else None,
+                    "sales_per_100k_adults": row.sales / population_adult * 100_000 if population_adult else None,
+                })
+            return payload
     return []
 
 
@@ -204,6 +221,217 @@ def top50_population_context(agencies: list[dict], latest_week: int | None, inpu
         "avg_sales_per_capita": top50_avg_sales / covered_population if covered_population else None,
         "rows": rows,
     }
+
+
+def commune_market_context(
+    rows: list[WeeklyAgencySale],
+    weeks: list[int],
+    latest_week: int | None,
+    input_dir: Path | str,
+) -> dict:
+    commune_names = {row.comuna for row in rows if row.comuna}
+    populations = population_by_commune(input_dir, commune_names)
+    calendar_year = infer_sales_calendar_year(input_dir)
+    month_meta = month_reference(weeks, calendar_year)
+    if not month_meta:
+        return {
+            "source_file": "personas_censo2024.csv",
+            "population_basis": "Personas mayores de 18 años",
+            "calendar_year": calendar_year,
+            "latest_week": latest_week,
+            "months": [],
+            "rows": [],
+        }
+
+    month_by_week = {
+        week: item
+        for item in month_meta
+        for week in item["weeks"]
+    }
+    commune_week_sales: dict[tuple[str, int], int] = defaultdict(int)
+    monthly_agencies: dict[tuple[str, str], set[str]] = defaultdict(set)
+    agencies_by_commune: dict[str, set[str]] = defaultdict(set)
+    latest_sales_by_commune: dict[str, int] = defaultdict(int)
+
+    for row in rows:
+        if not row.comuna or row.week not in month_by_week:
+            continue
+        population = populations.get(row.comuna)
+        if not population:
+            continue
+        month_key = month_by_week[row.week]["month"]
+        commune_week_sales[(row.comuna, row.week)] += int(row.weekly_sales)
+        if row.lotos_code:
+            monthly_agencies[(row.comuna, month_key)].add(row.lotos_code)
+            agencies_by_commune[row.comuna].add(row.lotos_code)
+        if latest_week is not None and row.week == latest_week:
+            latest_sales_by_commune[row.comuna] += int(row.weekly_sales)
+
+    monthly_sales: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for (commune, week), sales in commune_week_sales.items():
+        month_key = month_by_week[week]["month"]
+        monthly_sales[(commune, month_key)].append(sales)
+
+    if not monthly_sales:
+        return {
+            "source_file": "personas_censo2024.csv",
+            "population_basis": "Personas mayores de 18 años",
+            "calendar_year": calendar_year,
+            "latest_week": latest_week,
+            "months": month_meta,
+            "rows": [],
+        }
+
+    available_months = []
+    for item in month_meta:
+        month_key = item["month"]
+        month_communes = [commune for commune in populations if (commune, month_key) in monthly_sales]
+        covered_population = sum(populations.get(commune, 0) for commune in month_communes)
+        avg_sales_total = sum(round(mean(monthly_sales[(commune, month_key)])) for commune in month_communes)
+        available_months.append({
+            **item,
+            "communes": len(month_communes),
+            "covered_population": covered_population,
+            "avg_sales": avg_sales_total,
+            "avg_sales_per_adult": avg_sales_total / covered_population if covered_population else None,
+            "avg_sales_per_100k_adults": avg_sales_total / covered_population * 100_000 if covered_population else None,
+        })
+
+    commune_rows = []
+    for commune in sorted(agencies_by_commune):
+        population = populations.get(commune)
+        if not population:
+            continue
+        monthly_series = []
+        for item in available_months:
+            month_key = item["month"]
+            values = monthly_sales.get((commune, month_key))
+            if not values:
+                continue
+            avg_sales = round(mean(values))
+            total_sales = sum(values)
+            monthly_series.append({
+                "month": month_key,
+                "label": item["label"],
+                "weeks": item["weeks"],
+                "weeks_count": len(values),
+                "avg_sales": avg_sales,
+                "total_sales": total_sales,
+                "agencies": len(monthly_agencies.get((commune, month_key), set())),
+                "avg_sales_per_adult": avg_sales / population if population else None,
+                "avg_sales_per_100k_adults": avg_sales / population * 100_000 if population else None,
+                "benchmark_avg_sales_per_100k_adults": item["avg_sales_per_100k_adults"],
+            })
+        if not monthly_series:
+            continue
+        overall_avg_sales = round(mean(point["avg_sales"] for point in monthly_series))
+        overall_avg_per_adult = overall_avg_sales / population if population else None
+        overall_avg_per_100k = overall_avg_sales / population * 100_000 if population else None
+        latest_month = monthly_series[-1]
+        delta_vs_benchmark = None
+        if (
+            latest_month["avg_sales_per_100k_adults"] is not None
+            and latest_month["benchmark_avg_sales_per_100k_adults"] is not None
+        ):
+            delta_vs_benchmark = (
+                latest_month["avg_sales_per_100k_adults"] - latest_month["benchmark_avg_sales_per_100k_adults"]
+            )
+        commune_rows.append({
+            "commune": commune,
+            "population": population,
+            "agencies": len(agencies_by_commune.get(commune, set())),
+            "latest_sales": latest_sales_by_commune.get(commune, 0),
+            "latest_month": latest_month["month"],
+            "latest_month_label": latest_month["label"],
+            "latest_month_avg_sales": latest_month["avg_sales"],
+            "latest_month_avg_sales_per_adult": latest_month["avg_sales_per_adult"],
+            "latest_month_avg_sales_per_100k_adults": latest_month["avg_sales_per_100k_adults"],
+            "overall_avg_sales": overall_avg_sales,
+            "overall_avg_sales_per_adult": overall_avg_per_adult,
+            "overall_avg_sales_per_100k_adults": overall_avg_per_100k,
+            "gap_vs_latest_month_benchmark_per_100k": delta_vs_benchmark,
+            "months_observed": len(monthly_series),
+            "monthly_series": monthly_series,
+        })
+
+    commune_rows.sort(
+        key=lambda item: (
+            item["overall_avg_sales_per_100k_adults"] if item["overall_avg_sales_per_100k_adults"] is not None else float("inf"),
+            item["overall_avg_sales"],
+        )
+    )
+    covered_population = sum(item["population"] for item in commune_rows)
+    overall_avg_sales_total = sum(item["overall_avg_sales"] for item in commune_rows)
+    below_latest_benchmark = [
+        item for item in commune_rows
+        if (
+            item["gap_vs_latest_month_benchmark_per_100k"] is not None
+            and item["gap_vs_latest_month_benchmark_per_100k"] < 0
+        )
+    ]
+    return {
+        "source_file": "personas_censo2024.csv",
+        "population_basis": "Personas mayores de 18 años",
+        "calendar_year": calendar_year,
+        "latest_week": latest_week,
+        "months": available_months,
+        "communes": len(commune_rows),
+        "covered_population": covered_population,
+        "overall_avg_sales": overall_avg_sales_total,
+        "overall_avg_sales_per_adult": overall_avg_sales_total / covered_population if covered_population else None,
+        "overall_avg_sales_per_100k_adults": overall_avg_sales_total / covered_population * 100_000 if covered_population else None,
+        "below_latest_benchmark_communes": len(below_latest_benchmark),
+        "rows": commune_rows,
+        "method_note": "Mes inferido desde la semana ISO disponible, usando el lunes de cada semana como referencia temporal.",
+    }
+
+
+def infer_sales_calendar_year(input_dir: Path | str) -> int:
+    years = []
+    for path in Path(input_dir).glob("Quick Report LOTO_*.pdf"):
+        match = PDF_YEAR_RE.search(path.name)
+        if match:
+            years.append(int(match.group(1)))
+    return max(years) if years else datetime.now().year
+
+
+def month_reference(weeks: list[int], calendar_year: int) -> list[dict]:
+    months: dict[str, dict] = {}
+    for week in sorted(set(weeks)):
+        try:
+            monday = date.fromisocalendar(calendar_year, week, 1)
+        except ValueError:
+            continue
+        month_key = monday.strftime("%Y-%m")
+        if month_key not in months:
+            months[month_key] = {
+                "month": month_key,
+                "label": spanish_month_label(monday),
+                "weeks": [],
+            }
+        months[month_key]["weeks"].append(week)
+    return [
+        {**item, "week": item["weeks"][-1]}
+        for _, item in sorted(months.items())
+    ]
+
+
+def spanish_month_label(value: date) -> str:
+    labels = {
+        1: "Ene",
+        2: "Feb",
+        3: "Mar",
+        4: "Abr",
+        5: "May",
+        6: "Jun",
+        7: "Jul",
+        8: "Ago",
+        9: "Sep",
+        10: "Oct",
+        11: "Nov",
+        12: "Dic",
+    }
+    return f"{labels[value.month]} {value.year}"
 
 
 def group_by_lotos(rows: list[WeeklyAgencySale]) -> dict[str, list[WeeklyAgencySale]]:

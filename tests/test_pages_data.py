@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import build_pages_data
 from app.weekly_sales import WeeklyAgencySale
-from build_pages_data import agency_time_series_metrics, build_dashboard_payload
+from build_pages_data import agency_time_series_metrics, build_dashboard_payload, commune_market_context
 
 
 def make_row(
     week: int,
     lotos_code: str,
     sales: float,
+    commune: str = "Comuna",
     territory: str = "Norte",
     executive: str = "DINO DIAZ",
     commercial_status: str = "Activo",
@@ -24,7 +26,7 @@ def make_row(
         agent_name=f"Agencia {lotos_code}",
         rut=None,
         address="Direccion",
-        comuna="Comuna",
+        comuna=commune,
         region_number="1",
         rubro="Exclusivo",
         executive=executive,
@@ -93,3 +95,44 @@ def test_agency_time_series_metrics_detects_trailing_zero_streak():
 
     assert metrics["trajectory"] == "apagada"
     assert metrics["zero_streak"] == 2
+
+
+def test_commune_market_context_builds_monthly_relative_series(monkeypatch):
+    monkeypatch.setattr(
+        build_pages_data,
+        "population_by_commune",
+        lambda _input_dir, commune_names: {commune: {"A": 1_000, "B": 2_000}[commune] for commune in commune_names},
+    )
+    monkeypatch.setattr(build_pages_data, "infer_sales_calendar_year", lambda _input_dir: 2026)
+
+    context = commune_market_context(
+        [
+            make_row(5, "100001", 100_000, commune="A"),
+            make_row(5, "100002", 50_000, commune="A"),
+            make_row(5, "200001", 400_000, commune="B"),
+            make_row(6, "100001", 200_000, commune="A"),
+            make_row(6, "100002", 20_000, commune="A"),
+            make_row(6, "200001", 600_000, commune="B"),
+            make_row(7, "100001", 300_000, commune="A"),
+            make_row(7, "100002", 30_000, commune="A"),
+            make_row(7, "200001", 500_000, commune="B"),
+        ],
+        [5, 6, 7],
+        7,
+        "input",
+    )
+
+    assert [item["month"] for item in context["months"]] == ["2026-01", "2026-02"]
+    assert context["communes"] == 2
+    a_row = next(item for item in context["rows"] if item["commune"] == "A")
+    b_row = next(item for item in context["rows"] if item["commune"] == "B")
+    assert a_row["latest_month_label"].endswith("2026")
+    assert a_row["agencies"] == 2
+    assert a_row["latest_month_avg_sales"] == 275_000
+    assert a_row["overall_avg_sales"] == 212_500
+    assert a_row["overall_avg_sales_per_100k_adults"] == 21_250_000
+    assert len(a_row["monthly_series"]) == 2
+    assert a_row["monthly_series"][1]["weeks_count"] == 2
+    assert context["rows"][0]["commune"] == "A"
+    assert b_row["overall_avg_sales_per_100k_adults"] == 23_750_000
+    assert context["below_latest_benchmark_communes"] == 0

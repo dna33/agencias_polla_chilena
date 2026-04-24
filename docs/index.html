@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gestion territorial de agencias</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="assets/styles.css?v=20260422-comuna-detalle">
+    <link rel="stylesheet" href="assets/styles.css?v=20260424-commune-card-layout-v2">
   </head>
   <body>
     <header class="topbar">
@@ -25,46 +25,6 @@
     </header>
 
     <main class="layout">
-      <section class="filters" aria-label="Filtros">
-        <label class="field">
-          <span>Buscar agencia</span>
-          <input id="searchInput" type="search" placeholder="Codigo, nombre, comuna">
-        </label>
-        <label class="field">
-          <span>Territorio</span>
-          <select id="territorySelect"></select>
-        </label>
-        <label class="field">
-          <span>Ejecutivo</span>
-          <select id="executiveSelect"></select>
-        </label>
-        <label class="field">
-          <span>Prioridad</span>
-          <select id="prioritySelect">
-            <option value="">Todas</option>
-            <option value="caida_fuerte">Caida fuerte</option>
-            <option value="sin_venta">Sin venta</option>
-            <option value="bajo_2019">Bajo 2019</option>
-            <option value="recuperacion">Recuperacion</option>
-            <option value="cerrada">Cerrada</option>
-            <option value="seguimiento">Seguimiento</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Trayectoria</span>
-          <select id="trajectorySelect">
-            <option value="">Todas</option>
-            <option value="creciente">Creciente</option>
-            <option value="estable">Estable</option>
-            <option value="deterioro">Deterioro</option>
-            <option value="intermitente">Intermitente</option>
-            <option value="reactivada">Reactivada</option>
-            <option value="apagada">Apagada</option>
-            <option value="sin_venta">Sin venta</option>
-          </select>
-        </label>
-      </section>
-
       <section class="kpis" aria-label="Indicadores principales">
         <article class="metric">
           <span>Venta semanal</span>
@@ -204,12 +164,25 @@
           <div class="weekly-tabs" role="tablist" aria-label="Vista semanal">
             <button class="active" data-weekly-view="indexed">Indice</button>
             <button data-weekly-view="smallMultiples">Paneles</button>
+            <button data-weekly-view="perAdult">Por hab. 18+</button>
+            <button data-weekly-view="per100k">Por 100k</button>
             <button data-weekly-view="heatmap">Mapa calor</button>
             <button data-weekly-view="change">Ultimo cambio</button>
           </div>
         </div>
         <div id="weeklyNote" class="weekly-note"></div>
         <div id="weeklyZoneChart" class="weekly-zone-chart" role="img" aria-label="Evolucion semanal por zona"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Comunas</p>
+            <h2>Venta relativa vs poblacion adulta</h2>
+          </div>
+          <div class="table-count">Promedio semanal agrupado por mes</div>
+        </div>
+        <div id="communeMarketPanel" class="commune-market-panel"></div>
       </section>
 
       <section class="panel">
@@ -259,6 +232,6 @@
     </aside>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/app.js?v=20260422-comuna-detalle"></script>
+    <script src="assets/app.js?v=20260424-commune-card-layout-v2"></script>
   </body>
 </html>
