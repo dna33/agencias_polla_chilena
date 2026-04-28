@@ -5,209 +5,291 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gestion territorial de agencias</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="assets/styles.css?v=20260424-commune-card-layout-v2">
+    <link rel="stylesheet" href="assets/styles.css?v=20260428-agency-prizes">
   </head>
   <body>
     <header class="topbar">
-      <div>
+      <div class="topbar-brand">
         <p class="eyebrow">Polla Chilena</p>
         <h1>Gestion semanal de puntos de venta</h1>
       </div>
-      <div class="topbar-actions">
-        <label class="field compact">
-          <span>Semana</span>
-          <select id="weekSelect"></select>
-        </label>
-        <button id="refreshButton" class="icon-button" title="Recargar datos" aria-label="Recargar datos">
-          ↻
-        </button>
-      </div>
+      <nav class="topbar-nav" aria-label="Navegacion principal">
+        <button class="topbar-tab active" data-perspective="territory">Territorio</button>
+        <button class="topbar-tab" data-perspective="agencies">Agencias</button>
+      </nav>
     </header>
 
     <main class="layout">
-      <section class="kpis" aria-label="Indicadores principales">
-        <article class="metric">
-          <span>Venta semanal</span>
-          <strong id="kpiSales">$0</strong>
-          <small id="kpiSalesDelta">Sin comparativo</small>
-        </article>
-        <article class="metric">
-          <span>Agencias con venta</span>
-          <strong id="kpiSelling">0</strong>
-          <small id="kpiSellingRate">0%</small>
-        </article>
-        <article class="metric">
-          <span>Agencias cerradas</span>
-          <strong id="kpiClosed">0</strong>
-          <small>Incluidas en historial</small>
-        </article>
-        <article class="metric">
-          <span>Acciones sugeridas</span>
-          <strong id="kpiActions">0</strong>
-          <small>Caidas, sin venta y bajo historico</small>
-        </article>
-      </section>
+      <section class="page-shell" data-page="territory">
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">Vista</p>
+            <h2>Territorio</h2>
+            <p class="page-copy">Lectura territorial de la red: cobertura, intensidad de venta y comparaciones relativas entre zonas y comunas.</p>
+          </div>
+          <label class="field compact">
+            <span>Semana</span>
+            <select id="territoryWeekSelect" data-week-control="territory"></select>
+          </label>
+        </div>
 
-      <section class="segment-layout">
-        <div class="panel">
+        <section class="kpis" aria-label="Indicadores principales">
+          <article class="metric">
+            <span>Venta semanal</span>
+            <strong id="territoryKpiSales">$0</strong>
+            <small id="territoryKpiSalesDelta">Sin comparativo</small>
+          </article>
+          <article class="metric">
+            <span>Cobertura agencias</span>
+            <strong id="territoryKpiCoverage">0</strong>
+            <small id="territoryKpiCoverageRate">0%</small>
+          </article>
+          <article class="metric">
+            <span>Territorios activos</span>
+            <strong id="territoryKpiTerritories">0</strong>
+            <small id="territoryKpiTerritoriesMeta">0 con venta</small>
+          </article>
+          <article class="metric">
+            <span>Comunas bajo benchmark</span>
+            <strong id="territoryKpiCommunes">0</strong>
+            <small id="territoryKpiCommunesMeta">Comparacion relativa</small>
+          </article>
+        </section>
+
+        <section class="panel">
           <div class="section-title">
             <div>
-              <p class="eyebrow">Subset estrategico</p>
+              <p class="eyebrow">Territorio operativo</p>
+              <h2>Mapa de zonas comerciales</h2>
+            </div>
+            <div class="table-count">Puntos coloreados por zona</div>
+          </div>
+          <div id="territoryMaps" class="map-grid" aria-label="Mapas de zonas comerciales"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Territorio comunal</p>
+              <h2>Venta relativa vs poblacion adulta</h2>
+            </div>
+            <div class="table-count">Promedio semanal agrupado por mes</div>
+          </div>
+          <div id="communeMarketPanel" class="commune-market-panel"></div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Lectura explicativa</p>
+              <h2>Pozo promedio por juego y venta Loto</h2>
+            </div>
+            <div class="table-count">MM$ promedio por juego</div>
+          </div>
+          <div id="jackpotSummary" class="chart-caption"></div>
+          <div id="jackpotChart" class="jackpot-chart" role="img" aria-label="Pozos Loto y Kino comparados con venta semanal de agencias Loto"></div>
+        </section>
+      </section>
+
+      <section class="page-shell" data-page="agencies">
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">Vista</p>
+            <h2>Agencias</h2>
+            <p class="page-copy">Lectura operativa por agencia: trayectorias, prioridades de gestion y detalle por punto de venta.</p>
+          </div>
+          <label class="field compact">
+            <span>Semana</span>
+            <select id="agenciesWeekSelect" data-week-control="agencies"></select>
+          </label>
+        </div>
+
+        <section class="kpis" aria-label="Indicadores de agencias">
+          <article class="metric">
+            <span>Agencias con venta</span>
+            <strong id="agencyKpiSelling">0</strong>
+            <small id="agencyKpiSellingRate">0%</small>
+          </article>
+          <article class="metric">
+            <span>Agencias cerradas</span>
+            <strong id="agencyKpiClosed">0</strong>
+            <small>Incluidas en historial</small>
+          </article>
+          <article class="metric">
+            <span>Acciones sugeridas</span>
+            <strong id="agencyKpiActions">0</strong>
+            <small>Caidas, sin venta y bajo historico</small>
+          </article>
+          <article class="metric">
+            <span>Venta prom. por agencia</span>
+            <strong id="agencyKpiAvgSales">$0</strong>
+            <small id="agencyKpiAvgSalesMeta">Semana seleccionada</small>
+          </article>
+        </section>
+
+        <section class="two-column">
+          <div class="panel chart-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Premios por agencia</p>
+                <h2>Agencias con mayor entrega de premios</h2>
+              </div>
+            </div>
+            <div id="agencyPrizeMeta" class="chart-caption"></div>
+            <div id="agencyPrizeRanking" class="compact-ranking"></div>
+          </div>
+
+          <div class="panel chart-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Premios por agencia</p>
+                <h2>Subjuegos con mayor monto entregado</h2>
+              </div>
+            </div>
+            <div id="agencyPrizeSubgames" class="bar-chart"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Premios por agencia</p>
+              <h2>Mapa de calor de premios entregados</h2>
+            </div>
+            <div class="table-count">Monto bruto por agencia georreferenciada</div>
+          </div>
+          <div id="agencyPrizeHeatMeta" class="chart-caption"></div>
+          <div id="agencyPrizeHeatMaps" class="map-grid" aria-label="Mapa de calor de premios entregados"></div>
+        </section>
+
+        <section class="two-column">
+          <div class="panel chart-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Lectura comercial</p>
+                <h2>Venta y cobertura</h2>
+              </div>
+            </div>
+            <div id="territoryChart" class="bar-chart" role="img" aria-label="Venta por territorio"></div>
+          </div>
+
+          <div class="panel chart-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Lectura comercial</p>
+                <h2>Venta semanal total</h2>
+              </div>
+            </div>
+            <div id="trendChart" class="trend-chart" role="img" aria-label="Tendencia semanal"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Territorio comparado</p>
+              <h2>Evolucion por zona</h2>
+            </div>
+            <div class="weekly-tabs" role="tablist" aria-label="Vista semanal">
+              <button class="active" data-weekly-view="indexed">Indice</button>
+              <button data-weekly-view="smallMultiples">Paneles</button>
+              <button data-weekly-view="perAdult">Por hab. 18+</button>
+              <button data-weekly-view="per100k">Por 100k</button>
+              <button data-weekly-view="heatmap">Mapa calor</button>
+              <button data-weekly-view="change">Ultimo cambio</button>
+            </div>
+          </div>
+          <div id="weeklyNote" class="weekly-note"></div>
+          <div id="weeklyZoneChart" class="weekly-zone-chart" role="img" aria-label="Evolucion semanal por zona"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Lectura operativa</p>
+              <h2>Lectura de trayectorias</h2>
+            </div>
+            <div class="table-count" id="seriesWindow">Semanas disponibles</div>
+          </div>
+          <div id="seriesNarrative" class="series-narrative"></div>
+          <div class="series-grid">
+            <div>
+              <h3 class="subsection-title">Clasificacion de agencias</h3>
+              <div id="trajectoryMix" class="trajectory-mix"></div>
+            </div>
+            <div>
+              <h3 class="subsection-title">Señales principales</h3>
+              <div id="seriesSignals" class="signal-list"></div>
+            </div>
+          </div>
+          <div>
+            <h3 class="subsection-title">Concentracion territorial de trayectorias</h3>
+            <div id="trajectoryByTerritory" class="trajectory-table"></div>
+          </div>
+          <div class="series-rankings">
+            <div>
+              <h3 class="subsection-title">Crecimiento sostenido</h3>
+              <div id="growthRanking" class="compact-ranking"></div>
+            </div>
+            <div>
+              <h3 class="subsection-title">Deterioro sostenido</h3>
+              <div id="deteriorationRanking" class="compact-ranking"></div>
+            </div>
+            <div>
+              <h3 class="subsection-title">Alta volatilidad</h3>
+              <div id="volatilityRanking" class="compact-ranking"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace-layout">
+          <div class="panel workspace-nav-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Gestion operativa</p>
+                <h2>Lista priorizada</h2>
+              </div>
+              <div class="table-count" id="tableCount">0 agencias</div>
+            </div>
+            <div class="table-wrap workspace-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Agencia</th>
+                    <th>Territorio</th>
+                    <th>Ejecutivo</th>
+                    <th>Venta</th>
+                    <th>Delta</th>
+                    <th>Prioridad</th>
+                  </tr>
+                </thead>
+                <tbody id="agencyTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside class="panel detail-panel workspace-detail-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Detalle de agencia</p>
+                <h2 id="detailTitle">Selecciona una agencia</h2>
+              </div>
+            </div>
+            <div id="agencyDetail" class="detail-grid"></div>
+          </aside>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Comparativo de agencias</p>
               <h2>Red completa vs Top 50 por venta promedio</h2>
             </div>
             <div class="table-count">Comparacion independiente de filtros</div>
           </div>
           <div id="segmentComparison" class="segment-comparison"></div>
-        </div>
+        </section>
 
-        <aside class="panel detail-panel segment-detail-panel">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">Detalle</p>
-              <h2 id="detailTitle">Selecciona una agencia</h2>
-            </div>
-          </div>
-          <div id="agencyDetail" class="detail-grid"></div>
-        </aside>
-      </section>
-
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Serie de tiempo</p>
-            <h2>Lectura de trayectorias</h2>
-          </div>
-          <div class="table-count" id="seriesWindow">Semanas disponibles</div>
-        </div>
-        <div id="seriesNarrative" class="series-narrative"></div>
-        <div class="series-grid">
-          <div>
-            <h3 class="subsection-title">Clasificacion de agencias</h3>
-            <div id="trajectoryMix" class="trajectory-mix"></div>
-          </div>
-          <div>
-            <h3 class="subsection-title">Señales principales</h3>
-            <div id="seriesSignals" class="signal-list"></div>
-          </div>
-        </div>
-        <div>
-          <h3 class="subsection-title">Concentracion territorial de trayectorias</h3>
-          <div id="trajectoryByTerritory" class="trajectory-table"></div>
-        </div>
-        <div class="series-rankings">
-          <div>
-            <h3 class="subsection-title">Crecimiento sostenido</h3>
-            <div id="growthRanking" class="compact-ranking"></div>
-          </div>
-          <div>
-            <h3 class="subsection-title">Deterioro sostenido</h3>
-            <div id="deteriorationRanking" class="compact-ranking"></div>
-          </div>
-          <div>
-            <h3 class="subsection-title">Alta volatilidad</h3>
-            <div id="volatilityRanking" class="compact-ranking"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="two-column">
-        <div class="panel chart-panel">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">Territorios</p>
-              <h2>Venta y cobertura</h2>
-            </div>
-          </div>
-          <div id="territoryChart" class="bar-chart" role="img" aria-label="Venta por territorio"></div>
-        </div>
-
-        <div class="panel chart-panel">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">Tendencia</p>
-              <h2>Venta semanal total</h2>
-            </div>
-          </div>
-          <div id="trendChart" class="trend-chart" role="img" aria-label="Tendencia semanal"></div>
-        </div>
-      </section>
-
-      <section class="panel chart-panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Pozos PDF</p>
-            <h2>Pozo promedio por juego y venta Loto</h2>
-          </div>
-          <div class="table-count">MM$ promedio por juego</div>
-        </div>
-        <div id="jackpotSummary" class="chart-caption"></div>
-        <div id="jackpotChart" class="jackpot-chart" role="img" aria-label="Pozos Loto y Kino comparados con venta semanal de agencias Loto"></div>
-      </section>
-
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Territorio</p>
-            <h2>Mapa de zonas comerciales</h2>
-          </div>
-          <div class="table-count">Puntos coloreados por zona</div>
-        </div>
-        <div id="territoryMaps" class="map-grid" aria-label="Mapas de zonas comerciales"></div>
-      </section>
-
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Agrupado semanal</p>
-            <h2>Evolucion por zona</h2>
-          </div>
-          <div class="weekly-tabs" role="tablist" aria-label="Vista semanal">
-            <button class="active" data-weekly-view="indexed">Indice</button>
-            <button data-weekly-view="smallMultiples">Paneles</button>
-            <button data-weekly-view="perAdult">Por hab. 18+</button>
-            <button data-weekly-view="per100k">Por 100k</button>
-            <button data-weekly-view="heatmap">Mapa calor</button>
-            <button data-weekly-view="change">Ultimo cambio</button>
-          </div>
-        </div>
-        <div id="weeklyNote" class="weekly-note"></div>
-        <div id="weeklyZoneChart" class="weekly-zone-chart" role="img" aria-label="Evolucion semanal por zona"></div>
-      </section>
-
-      <section class="panel">
-        <div class="section-title">
-          <div>
-            <p class="eyebrow">Comunas</p>
-            <h2>Venta relativa vs poblacion adulta</h2>
-          </div>
-          <div class="table-count">Promedio semanal agrupado por mes</div>
-        </div>
-        <div id="communeMarketPanel" class="commune-market-panel"></div>
-      </section>
-
-      <section class="panel">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">Gestion</p>
-              <h2>Lista priorizada</h2>
-            </div>
-            <div class="table-count" id="tableCount">0 agencias</div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Agencia</th>
-                  <th>Territorio</th>
-                  <th>Ejecutivo</th>
-                  <th>Venta</th>
-                  <th>Delta</th>
-                  <th>Prioridad</th>
-                </tr>
-              </thead>
-              <tbody id="agencyTable"></tbody>
-            </table>
-          </div>
       </section>
     </main>
 
@@ -231,7 +313,8 @@
       </div>
     </aside>
 
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/app.js?v=20260424-commune-card-layout-v2"></script>
+    <script src="assets/app.js?v=20260428-plotly-suerte-8"></script>
   </body>
 </html>

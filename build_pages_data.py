@@ -10,6 +10,7 @@ from statistics import mean, median
 import re
 
 from app.census_population import population_by_commune
+from app.agency_prizes import find_agency_prize_workbook, parse_agency_prize_workbook
 from app.grouped_sales import parse_weekly_zone_evolution
 from app.jackpot_pdf import parse_jackpot_pdfs
 from app.weekly_sales import WeeklyAgencySale, parse_weekly_workbooks
@@ -48,6 +49,8 @@ def weekly_input_paths(input_dir: Path) -> list[Path]:
             continue
         if path.name.startswith("MaeGerCom"):
             continue
+        if path.name.lower().startswith("premios vendidos por lotos"):
+            continue
         paths.append(path)
     return paths
 
@@ -58,8 +61,10 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
     previous_week = weeks[-2] if len(weeks) > 1 else None
     latest_rows = [row for row in rows if row.week == latest_week]
     rows_by_lotos = group_by_lotos(rows)
+    prize_rows = prize_payload(input_dir)
+    prizes_by_lotos = {row["lotos_code"]: row for row in prize_rows}
     agency_payload = [
-        agency_summary(lotos_code, agency_rows, latest_week, previous_week)
+        agency_summary(lotos_code, agency_rows, latest_week, previous_week, prizes_by_lotos)
         for lotos_code, agency_rows in rows_by_lotos.items()
     ]
     agency_payload.sort(key=lambda item: item["latest_sales"], reverse=True)
@@ -84,6 +89,7 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
         "time_series_summary": time_series_summary,
         "weekly_sales_with_jackpots": weekly_sales_with_jackpots(rows, jackpots),
         "weekly_jackpots": jackpots,
+        "agency_prize_summary": summarize_agency_prizes(prize_rows, agency_payload),
         "top50_population_context": top50_population,
         "commune_market_context": commune_market,
         "weekly_zone_evolution": weekly_zone_evolution(paths, input_dir),
@@ -105,6 +111,24 @@ def jackpot_payload(input_dir: Path | str) -> list[dict]:
             "extraction_note": row.extraction_note,
         }
         for row in parse_jackpot_pdfs(input_dir)
+    ]
+
+
+def prize_payload(input_dir: Path | str) -> list[dict]:
+    workbook_path = find_agency_prize_workbook(input_dir)
+    if not workbook_path:
+        return []
+    return [
+        {
+            "lotos_code": row.lotos_code,
+            "agent_name": row.agent_name,
+            "gross_total": row.gross_total,
+            "net_total": row.net_total,
+            "subgames_count": row.subgames_count,
+            "top_subgames": row.top_subgames,
+            "source_file": workbook_path.name,
+        }
+        for row in parse_agency_prize_workbook(workbook_path)
     ]
 
 
@@ -259,6 +283,8 @@ def commune_market_context(
         population = populations.get(row.comuna)
         if not population:
             continue
+        if row.weekly_sales <= 0:
+            continue
         month_key = month_by_week[row.week]["month"]
         commune_week_sales[(row.comuna, row.week)] += int(row.weekly_sales)
         if row.lotos_code:
@@ -268,9 +294,11 @@ def commune_market_context(
             latest_sales_by_commune[row.comuna] += int(row.weekly_sales)
 
     monthly_sales: dict[tuple[str, str], list[int]] = defaultdict(list)
+    weekly_network_sales: dict[int, int] = defaultdict(int)
     for (commune, week), sales in commune_week_sales.items():
         month_key = month_by_week[week]["month"]
         monthly_sales[(commune, month_key)].append(sales)
+        weekly_network_sales[week] += sales
 
     if not monthly_sales:
         return {
@@ -303,6 +331,11 @@ def commune_market_context(
         if not population:
             continue
         monthly_series = []
+        weekly_values = [
+            sales
+            for (series_commune, _week), sales in commune_week_sales.items()
+            if series_commune == commune
+        ]
         for item in available_months:
             month_key = item["month"]
             values = monthly_sales.get((commune, month_key))
@@ -324,7 +357,7 @@ def commune_market_context(
             })
         if not monthly_series:
             continue
-        overall_avg_sales = round(mean(point["avg_sales"] for point in monthly_series))
+        overall_avg_sales = round(mean(weekly_values)) if weekly_values else 0
         overall_avg_per_adult = overall_avg_sales / population if population else None
         overall_avg_per_100k = overall_avg_sales / population * 100_000 if population else None
         latest_month = monthly_series[-1]
@@ -351,6 +384,7 @@ def commune_market_context(
             "overall_avg_sales_per_100k_adults": overall_avg_per_100k,
             "gap_vs_latest_month_benchmark_per_100k": delta_vs_benchmark,
             "months_observed": len(monthly_series),
+            "weeks_observed": len(weekly_values),
             "monthly_series": monthly_series,
         })
 
@@ -361,7 +395,7 @@ def commune_market_context(
         )
     )
     covered_population = sum(item["population"] for item in commune_rows)
-    overall_avg_sales_total = sum(item["overall_avg_sales"] for item in commune_rows)
+    overall_avg_sales_total = round(mean(weekly_network_sales.values())) if weekly_network_sales else 0
     below_latest_benchmark = [
         item for item in commune_rows
         if (
@@ -447,6 +481,7 @@ def agency_summary(
     rows: list[WeeklyAgencySale],
     latest_week: int | None,
     previous_week: int | None,
+    prizes_by_lotos: dict[str, dict] | None = None,
 ) -> dict:
     rows_by_week = {row.week: row for row in rows}
     latest = rows_by_week.get(latest_week) or sorted(rows, key=lambda row: row.week)[-1]
@@ -469,6 +504,7 @@ def agency_summary(
     average_sales_2019 = int(latest.average_sales_2019 or 0)
     gap_vs_2019 = latest_sales - average_sales_2019 if average_sales_2019 else None
     time_series = agency_time_series_metrics(history)
+    prize_info = (prizes_by_lotos or {}).get(lotos_code, {})
 
     return {
         "lotos_code": lotos_code,
@@ -502,6 +538,10 @@ def agency_summary(
         "is_closed": latest.is_closed,
         "history": history,
         "time_series": time_series,
+        "prize_total_gross": int(prize_info.get("gross_total") or 0),
+        "prize_total_net": int(prize_info.get("net_total") or 0),
+        "prize_subgames_count": int(prize_info.get("subgames_count") or 0),
+        "prize_top_subgames": prize_info.get("top_subgames") or [],
         "priority": classify_priority(latest, delta, previous_sales, gap_vs_2019),
     }
 
@@ -630,6 +670,54 @@ def summarize_time_series(agencies: list[dict], weeks: list[int]) -> dict:
                 key=lambda item: item["time_series"]["zero_streak"],
                 reverse=True,
             )[:25]
+        ],
+    }
+
+
+def summarize_agency_prizes(prize_rows: list[dict], agencies: list[dict]) -> dict:
+    if not prize_rows:
+        return {
+            "source_file": None,
+            "agencies_with_prizes": 0,
+            "gross_total": 0,
+            "net_total": 0,
+            "avg_gross_per_agency": 0,
+            "top_agencies": [],
+            "top_subgames": [],
+        }
+    agencies_by_lotos = {agency["lotos_code"]: agency for agency in agencies}
+    top_agencies = sorted(prize_rows, key=lambda row: row["gross_total"], reverse=True)[:12]
+    subgames: dict[str, dict[str, int]] = defaultdict(lambda: {"gross_total": 0, "net_total": 0, "agencies": 0})
+    for row in prize_rows:
+        for item in row.get("top_subgames", []):
+            subgame = str(item["subgame"])
+            subgames[subgame]["gross_total"] += int(item.get("gross_total") or 0)
+            subgames[subgame]["net_total"] += int(item.get("net_total") or 0)
+            subgames[subgame]["agencies"] += 1
+    return {
+        "source_file": prize_rows[0].get("source_file"),
+        "agencies_with_prizes": len(prize_rows),
+        "gross_total": sum(int(row["gross_total"]) for row in prize_rows),
+        "net_total": sum(int(row["net_total"]) for row in prize_rows),
+        "avg_gross_per_agency": int(mean(int(row["gross_total"]) for row in prize_rows)),
+        "top_agencies": [
+            {
+                "lotos_code": row["lotos_code"],
+                "agent_name": agencies_by_lotos.get(row["lotos_code"], {}).get("agent_name") or row.get("agent_name"),
+                "gross_total": row["gross_total"],
+                "net_total": row["net_total"],
+                "subgames_count": row["subgames_count"],
+            }
+            for row in top_agencies
+        ],
+        "top_subgames": [
+            {
+                "subgame": name,
+                "gross_total": values["gross_total"],
+                "net_total": values["net_total"],
+                "agencies": values["agencies"],
+            }
+            for name, values in sorted(subgames.items(), key=lambda item: item[1]["gross_total"], reverse=True)[:10]
         ],
     }
 

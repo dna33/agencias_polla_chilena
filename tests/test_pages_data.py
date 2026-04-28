@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import build_pages_data
 from app.weekly_sales import WeeklyAgencySale
-from build_pages_data import agency_time_series_metrics, build_dashboard_payload, commune_market_context
+from build_pages_data import agency_time_series_metrics, build_dashboard_payload, commune_market_context, weekly_input_paths
 
 
 def make_row(
@@ -109,12 +109,15 @@ def test_commune_market_context_builds_monthly_relative_series(monkeypatch):
         [
             make_row(5, "100001", 100_000, commune="A"),
             make_row(5, "100002", 50_000, commune="A"),
+            make_row(5, "100003", 0, commune="A"),
             make_row(5, "200001", 400_000, commune="B"),
             make_row(6, "100001", 200_000, commune="A"),
             make_row(6, "100002", 20_000, commune="A"),
+            make_row(6, "100003", 0, commune="A"),
             make_row(6, "200001", 600_000, commune="B"),
             make_row(7, "100001", 300_000, commune="A"),
             make_row(7, "100002", 30_000, commune="A"),
+            make_row(7, "100003", 0, commune="A"),
             make_row(7, "200001", 500_000, commune="B"),
         ],
         [5, 6, 7],
@@ -129,10 +132,53 @@ def test_commune_market_context_builds_monthly_relative_series(monkeypatch):
     assert a_row["latest_month_label"].endswith("2026")
     assert a_row["agencies"] == 2
     assert a_row["latest_month_avg_sales"] == 275_000
-    assert a_row["overall_avg_sales"] == 212_500
-    assert a_row["overall_avg_sales_per_100k_adults"] == 21_250_000
+    assert a_row["overall_avg_sales"] == 233_333
+    assert a_row["overall_avg_sales_per_100k_adults"] == 23_333_300
     assert len(a_row["monthly_series"]) == 2
     assert a_row["monthly_series"][1]["weeks_count"] == 2
+    assert a_row["weeks_observed"] == 3
     assert context["rows"][0]["commune"] == "A"
-    assert b_row["overall_avg_sales_per_100k_adults"] == 23_750_000
+    assert b_row["overall_avg_sales_per_100k_adults"] == 25_000_000
     assert context["below_latest_benchmark_communes"] == 0
+
+
+def test_build_dashboard_payload_attaches_prize_totals(monkeypatch):
+    monkeypatch.setattr(
+        build_pages_data,
+        "prize_payload",
+        lambda _input_dir: [
+            {
+                "lotos_code": "123456",
+                "agent_name": "Agencia 123456",
+                "gross_total": 900_000,
+                "net_total": 850_000,
+                "subgames_count": 2,
+                "top_subgames": [{"subgame": "Loto", "gross_total": 700_000, "net_total": 660_000}],
+                "source_file": "premios.xlsx",
+            }
+        ],
+    )
+
+    payload = build_dashboard_payload(
+        [
+            make_row(16, "123456", 900_000),
+            make_row(16, "654321", 300_000),
+        ],
+        [],
+    )
+
+    agency = next(item for item in payload["agencies"] if item["lotos_code"] == "123456")
+    assert agency["prize_total_gross"] == 900_000
+    assert agency["prize_total_net"] == 850_000
+    assert payload["agency_prize_summary"]["gross_total"] == 900_000
+    assert payload["agency_prize_summary"]["top_agencies"][0]["lotos_code"] == "123456"
+
+
+def test_weekly_input_paths_excludes_prize_workbook(tmp_path):
+    (tmp_path / "Base Semana 17.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "Premios Vendidos por Lotos 2026 al 04-26.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "MaeGerCom - Base Datos.xlsx").write_text("", encoding="utf-8")
+
+    paths = weekly_input_paths(tmp_path)
+
+    assert [path.name for path in paths] == ["Base Semana 17.xlsx"]

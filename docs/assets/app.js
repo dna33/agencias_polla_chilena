@@ -1,8 +1,13 @@
 const state = {
   data: null,
   week: null,
+  perspective: "territory",
   weeklyView: "indexed",
-  maps: {},
+  maps: {
+    territory: {},
+    agencies: {},
+    commune: null,
+  },
   selectedAgency: null,
   selectedCommune: null,
 };
@@ -33,10 +38,18 @@ async function init() {
 }
 
 function bindEvents() {
-  document.getElementById("refreshButton").addEventListener("click", loadData);
-  document.getElementById("weekSelect").addEventListener("change", (event) => {
-    state.week = Number(event.target.value);
-    render();
+  document.querySelectorAll("[data-perspective]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.perspective = button.dataset.perspective;
+      applyPerspective();
+    });
+  });
+  document.querySelectorAll("[data-week-control]").forEach((select) => {
+    select.addEventListener("change", (event) => {
+      state.week = Number(event.target.value);
+      syncWeekControls();
+      render();
+    });
   });
   document.getElementById("assistantToggle").addEventListener("click", () => {
     const assistant = document.querySelector(".assistant");
@@ -99,7 +112,21 @@ function showLoadError(error) {
 }
 
 function populateControls() {
-  fillSelect("weekSelect", state.data.weeks.map(String), state.week, false);
+  syncPerspectiveTabs();
+  syncWeekControls();
+}
+
+function syncWeekControls() {
+  document.querySelectorAll("[data-week-control]").forEach((select) => {
+    fillSelect(select.id, state.data.weeks.map(String), state.week, false);
+  });
+}
+
+function syncPerspectiveTabs() {
+  document.querySelectorAll("[data-perspective]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.perspective === state.perspective);
+    button.setAttribute("aria-pressed", button.classList.contains("active") ? "true" : "false");
+  });
 }
 
 function fillSelect(id, values, selectedValue, includeAll) {
@@ -109,8 +136,10 @@ function fillSelect(id, values, selectedValue, includeAll) {
     select.append(new Option("Todos", ""));
   }
   values.forEach((value) => {
-    const option = new Option(String(value), String(value));
-    option.selected = String(value) === String(selectedValue);
+    const rawValue = typeof value === "object" ? value.value : value;
+    const label = typeof value === "object" ? value.label : value;
+    const option = new Option(String(label), String(rawValue));
+    option.selected = String(rawValue) === String(selectedValue);
     select.append(option);
   });
 }
@@ -118,7 +147,10 @@ function fillSelect(id, values, selectedValue, includeAll) {
 function render() {
   if (!state.data) return;
   const agencies = filteredAgencies();
-  safeRender("kpis", () => renderKpis(agencies));
+  safeRender("territoryKpiSales", () => renderTerritoryKpis(agencies));
+  safeRender("agencyKpiSelling", () => renderAgencyKpis(agencies));
+  safeRender("agencyPrizeRanking", renderAgencyPrizeSummary);
+  safeRender("agencyPrizeHeatMaps", renderAgencyPrizeHeatMaps);
   safeRender("seriesNarrative", () => renderSeriesAnalysis(agencies));
   safeRender("territoryChart", () => renderTerritoryChart(agencies));
   safeRender("trendChart", renderTrendChart);
@@ -129,6 +161,18 @@ function render() {
   safeRender("communeMarketPanel", renderCommuneMarketPanel);
   safeRender("agencyTable", () => renderTable(agencies));
   safeRender("agencyDetail", () => renderDetail(state.selectedAgency));
+  applyPerspective();
+}
+
+function applyPerspective() {
+  document.body.dataset.perspective = state.perspective;
+  syncPerspectiveTabs();
+  document.querySelectorAll("[data-page]").forEach((section) => {
+    const isActive = section.dataset.page === state.perspective;
+    section.hidden = !isActive;
+    section.classList.toggle("active-page", isActive);
+  });
+  setTimeout(() => invalidatePerspectiveMaps(), 0);
 }
 
 function safeRender(targetId, callback) {
@@ -158,26 +202,340 @@ function previousSnapshot(agency, week) {
   return previousWeeks[0] || null;
 }
 
-function renderKpis(agencies) {
+function renderTerritoryKpis(agencies) {
   const current = agencies.map((agency) => ({ agency, snapshot: weekSnapshot(agency, state.week) })).filter((item) => item.snapshot);
   const totalSales = current.reduce((sum, item) => sum + item.snapshot.sales, 0);
   const previousSales = current.reduce((sum, item) => sum + (previousSnapshot(item.agency, state.week)?.sales || 0), 0);
   const selling = current.filter((item) => item.snapshot.sales > 0).length;
-  const closed = current.filter((item) => item.agency.is_closed).length;
-  const actions = current.filter((item) => ["caida_fuerte", "sin_venta", "bajo_2019"].includes(item.agency.priority)).length;
+  const territories = new Set(current.map((item) => item.agency.territory).filter(Boolean));
+  const activeTerritories = new Set(current.filter((item) => item.snapshot.sales > 0).map((item) => item.agency.territory).filter(Boolean));
+  const communesBelow = state.data?.commune_market_context?.below_latest_benchmark_communes || 0;
   const delta = totalSales - previousSales;
 
-  setText("kpiSales", money(totalSales));
-  setText("kpiSalesDelta", previousSales ? `${signedMoney(delta)} vs semana previa` : "Sin comparativo");
-  setText("kpiSelling", number(selling));
-  setText("kpiSellingRate", `${percent(selling / (current.length || 1))} de ${number(current.length)}`);
-  setText("kpiClosed", number(closed));
-  setText("kpiActions", number(actions));
+  setText("territoryKpiSales", money(totalSales));
+  setText("territoryKpiSalesDelta", previousSales ? `${signedMoney(delta)} vs semana previa` : "Sin comparativo");
+  setText("territoryKpiCoverage", number(selling));
+  setText("territoryKpiCoverageRate", `${percent(selling / (current.length || 1))} de ${number(current.length)} agencias`);
+  setText("territoryKpiTerritories", number(territories.size));
+  setText("territoryKpiTerritoriesMeta", `${number(activeTerritories.size)} con venta en la semana`);
+  setText("territoryKpiCommunes", number(communesBelow));
+  setText("territoryKpiCommunesMeta", "Ultimo mes relativo vs benchmark red");
 }
+
+function renderAgencyKpis(agencies) {
+  const current = agencies.map((agency) => ({ agency, snapshot: weekSnapshot(agency, state.week) })).filter((item) => item.snapshot);
+  const selling = current.filter((item) => item.snapshot.sales > 0).length;
+  const closed = current.filter((item) => item.agency.is_closed).length;
+  const actions = current.filter((item) => ["caida_fuerte", "sin_venta", "bajo_2019"].includes(item.agency.priority)).length;
+  const avgSales = current.length ? current.reduce((sum, item) => sum + item.snapshot.sales, 0) / current.length : 0;
+
+  setText("agencyKpiSelling", number(selling));
+  setText("agencyKpiSellingRate", `${percent(selling / (current.length || 1))} de ${number(current.length)} agencias`);
+  setText("agencyKpiClosed", number(closed));
+  setText("agencyKpiActions", number(actions));
+  setText("agencyKpiAvgSales", money(avgSales));
+  setText("agencyKpiAvgSalesMeta", `Promedio sobre ${number(current.length)} agencias observadas`);
+}
+
+function renderAgencyPrizeSummary() {
+  const summary = state.data.agency_prize_summary || {};
+  const meta = document.getElementById("agencyPrizeMeta");
+  const ranking = document.getElementById("agencyPrizeRanking");
+  const subgames = document.getElementById("agencyPrizeSubgames");
+  if (!ranking || !subgames) return;
+
+  if (!summary.agencies_with_prizes) {
+    if (meta) meta.textContent = "No hay archivo de premios cargado.";
+    ranking.innerHTML = "<p class='muted'>Sin agencias con premios procesadas.</p>";
+    subgames.innerHTML = "<p class='muted'>Sin subjuegos con premios procesados.</p>";
+    return;
+  }
+
+  if (meta) {
+    const sourceFile = summary.source_file ? `Fuente: ${summary.source_file}. ` : "";
+    meta.textContent = `${sourceFile}${number(summary.agencies_with_prizes)} agencias con premios, ${money(summary.gross_total || 0)} brutos y ${money(summary.net_total || 0)} netos. Promedio bruto: ${money(summary.avg_gross_per_agency || 0)} por agencia.`;
+  }
+
+  ranking.innerHTML = (summary.top_agencies || []).map((item, index) => `
+    <button class="ranking-item" data-lotos="${escapeHtml(item.lotos_code)}">
+      <span>${index + 1}</span>
+      <strong>${escapeHtml(item.lotos_code)} · ${escapeHtml(item.agent_name || "Sin nombre")}</strong>
+      <em>${money(item.gross_total || 0)} bruto · ${money(item.net_total || 0)} neto · ${number(item.subgames_count || 0)} subj.</em>
+    </button>
+  `).join("") || "<p class='muted'>Sin ranking de premios.</p>";
+
+  const maxGross = Math.max(...(summary.top_subgames || []).map((item) => item.gross_total || 0), 1);
+  subgames.innerHTML = (summary.top_subgames || []).map((item) => {
+    const width = Math.max(4, ((item.gross_total || 0) / maxGross) * 100);
+    return `
+      <div class="bar-row">
+        <div class="bar-label">${escapeHtml(item.subgame || "Sin subjuego")}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
+        <div class="bar-value">${money(item.gross_total || 0)}</div>
+        <div class="bar-meta">${money(item.net_total || 0)} neto · ${number(item.agencies || 0)} agencias</div>
+      </div>
+    `;
+  }).join("") || "<p class='muted'>Sin subjuegos con monto procesado.</p>";
+
+  document.querySelectorAll("#agencyPrizeRanking .ranking-item").forEach((button) => {
+    button.addEventListener("click", () => {
+      const agency = state.data.agencies.find((item) => item.lotos_code === button.dataset.lotos);
+      if (agency) {
+        state.selectedAgency = agency;
+        renderDetail(agency);
+      }
+    });
+  });
+}
+
+function renderAgencyPrizeHeatMaps() {
+  const container = document.getElementById("agencyPrizeHeatMaps");
+  const meta = document.getElementById("agencyPrizeHeatMeta");
+  if (!container) return;
+
+  const points = agencyPrizeMapPoints();
+  if (meta) {
+    const totalGross = points.reduce((sum, point) => sum + (point.prizeGross || 0), 0);
+    meta.textContent = points.length
+      ? `${number(points.length)} agencias con premios georreferenciadas. Monto bruto total representado: ${money(totalGross)}. La escala usa color continuo con referencia visible en millones para leer el espectro de premios.`
+      : "No hay agencias con premios y coordenadas para mapear.";
+  }
+
+  destroyAgencyPrizeMaps();
+
+  if (!points.length) {
+    container.innerHTML = "<p class='muted'>Sin premios georreferenciados para desplegar.</p>";
+    return;
+  }
+
+  if (!window.Plotly) {
+    container.innerHTML = "<p class='load-error'>No se pudo cargar Plotly para el mapa de la suerte.</p>";
+    return;
+  }
+
+  const rmBounds = [[-34.15, -71.45], [-32.95, -70.25]];
+  const rmPoints = points.filter((point) => point.lat >= rmBounds[0][0] && point.lat <= rmBounds[1][0] && point.lon >= rmBounds[0][1] && point.lon <= rmBounds[1][1]);
+  container.innerHTML = `
+    ${renderPrizePlotCard("agencyPrizeMapChile", "Chile", "Densidad territorial de premios entregados", points.length)}
+    ${renderPrizePlotCard("agencyPrizeMapRm", "Region Metropolitana", "Concentracion metropolitana de premios", rmPoints.length)}
+  `;
+
+  renderPrizeDensityPlot("agencyPrizeMapChile", points, {
+    center: { lat: -35.7, lon: -71.2 },
+    zoom: 3.9,
+    radius: 20,
+  });
+  renderPrizeDensityPlot("agencyPrizeMapRm", rmPoints, {
+    center: { lat: -33.45, lon: -70.66 },
+    zoom: 8.3,
+    radius: 16,
+  });
+}
+
+function agencyPrizeMapPoints() {
+  return (state.data.agencies || [])
+    .filter((agency) => Number.isFinite(agency.latitude) && Number.isFinite(agency.longitude) && (agency.prize_total_gross || 0) > 0)
+    .map((agency) => ({
+      lotosCode: agency.lotos_code,
+      code: agency.lotos_code,
+      name: agency.agent_name || "Sin nombre",
+      zone: agency.territory || "Sin zona",
+      comuna: agency.comuna || "Sin comuna",
+      lat: agency.latitude,
+      lon: agency.longitude,
+      sales: weekSnapshot(agency, state.week)?.sales || 0,
+      prizeGross: agency.prize_total_gross || 0,
+      prizeNet: agency.prize_total_net || 0,
+      prizeSubgamesCount: agency.prize_subgames_count || 0,
+      topPrize: agency.prize_top_subgames?.[0] || null,
+      history: agency.history || [],
+    }));
+}
+
+function renderPrizePlotCard(id, title, subtitle, count) {
+  return `
+    <article class="map-card">
+      <div class="map-card-head">
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(subtitle)}</p>
+        </div>
+        <span>${number(count)} agencias</span>
+      </div>
+      <div id="${id}" class="prize-map-plot" aria-label="${escapeHtml(title)}"></div>
+    </article>
+  `;
+}
+
+function prizeHeatWeight(value, maxValue) {
+  if (!value || !maxValue) return 0;
+  const ratio = Math.log10(1 + value) / Math.log10(1 + maxValue);
+  return Math.max(0.02, Math.min(1, Math.pow(ratio, 1.15)));
+}
+
+function prizeHeatScale(points) {
+  const values = points
+    .map((point) => point.prizeGross || 0)
+    .filter((value) => value > 0)
+    .sort((a, b) => a - b);
+  if (!values.length) {
+    return { cap: 1, min: 1 };
+  }
+  const cap = values[values.length - 1] || 1;
+  return {
+    cap: Math.max(1, cap),
+    min: Math.max(1, values[0] || 1),
+  };
+}
+
+function renderPrizeDensityPlot(id, points, view) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  if (!points.length) {
+    element.innerHTML = "<div class='map-unavailable'>Sin agencias con premios para esta vista.</div>";
+    return;
+  }
+  const scale = prizeHeatScale(points);
+  const weights = points.map((point) => prizeHeatWeight(point.prizeGross || 0, scale.cap));
+  const colorValues = points.map((point) => Math.log10(1 + (point.prizeGross || 0)));
+  const colorMin = Math.log10(1 + scale.min);
+  const colorMax = Math.log10(1 + scale.cap);
+  const colorbarTicks = prizeColorbarTicks(scale.min, scale.cap);
+  const baseRadius = view.radius;
+  const trace = {
+    type: "densitymapbox",
+    lat: points.map((point) => point.lat),
+    lon: points.map((point) => point.lon),
+    z: weights,
+    radius: baseRadius,
+    hovertemplate: "Densidad de premios<extra></extra>",
+    colorscale: [
+      [0.0, "#2c7bb6"],
+      [0.2, "#00a6ca"],
+      [0.4, "#00ccbc"],
+      [0.58, "#90eb9d"],
+      [0.74, "#ffff8c"],
+      [0.88, "#f9d057"],
+      [1.0, "#f29e2e"],
+    ],
+    showscale: false,
+    opacity: 0.68,
+  };
+  const markers = {
+    type: "scattermapbox",
+    mode: "markers",
+    lat: points.map((point) => point.lat),
+    lon: points.map((point) => point.lon),
+    marker: {
+      size: points.map((point) => 6 + prizeHeatWeight(point.prizeGross || 0, scale.cap) * 12),
+      color: colorValues,
+      cmin: colorMin,
+      cmax: colorMax,
+      colorscale: [
+        [0.0, "#2c7bb6"],
+        [0.2, "#00a6ca"],
+        [0.4, "#00ccbc"],
+        [0.58, "#90eb9d"],
+        [0.74, "#ffff8c"],
+        [0.88, "#f9d057"],
+        [1.0, "#f29e2e"],
+      ],
+      opacity: 0.68,
+      colorbar: {
+        title: { text: "Premios<br>brutos" },
+        thickness: 12,
+        len: 0.72,
+        x: 0.98,
+        y: 0.5,
+        tickvals: colorbarTicks.map((item) => item.value),
+        ticktext: colorbarTicks.map((item) => item.label),
+        outlinewidth: 0,
+      },
+    },
+    customdata: points.map((point) => [
+      point.lotosCode,
+      point.code,
+      point.name,
+      point.comuna,
+      point.zone,
+      point.prizeGross,
+      point.prizeNet,
+      point.prizeSubgamesCount,
+      point.topPrize?.subgame || "",
+      point.topPrize?.gross_total || 0,
+    ]),
+    hovertemplate: [
+      "<b>%{customdata[1]} · %{customdata[2]}</b>",
+      "%{customdata[3]} · %{customdata[4]}",
+      "Premios brutos: %{customdata[5]:$,d}",
+      "Premios netos: %{customdata[6]:$,d} · %{customdata[7]} subj.",
+      "Principal: %{customdata[8]} %{customdata[9]:$,d}",
+      "<extra></extra>",
+    ].join("<br>"),
+  };
+  const layout = {
+    margin: { t: 0, r: 0, b: 0, l: 0 },
+    paper_bgcolor: "#fbfcfc",
+    plot_bgcolor: "#fbfcfc",
+    dragmode: "pan",
+    mapbox: {
+      style: "carto-positron",
+      center: view.center,
+      zoom: view.zoom,
+    },
+  };
+  const config = {
+    displayModeBar: false,
+    responsive: true,
+    scrollZoom: true,
+  };
+  Plotly.newPlot(element, [trace, markers], layout, config).then(() => {
+    element.__currentPrizeRadius = baseRadius;
+    element.on("plotly_click", (event) => {
+      const point = event?.points?.find((item) => item.data?.type === "scattermapbox");
+      const lotosCode = point?.customdata?.[0];
+      if (!lotosCode) return;
+      const agency = state.data.agencies.find((item) => item.lotos_code === lotosCode);
+      if (agency) {
+        state.selectedAgency = agency;
+        renderDetail(agency);
+      }
+    });
+    element.on("plotly_relayout", (event) => {
+      const zoom = event?.["mapbox.zoom"];
+      if (typeof zoom !== "number") return;
+      const nextRadius = densityRadiusForZoom(baseRadius, zoom);
+      if (Math.abs((element.__currentPrizeRadius || 0) - nextRadius) < 0.5) return;
+      element.__currentPrizeRadius = nextRadius;
+      Plotly.restyle(element, { radius: [nextRadius] }, [0]);
+    });
+  });
+}
+
+function prizeColorbarTicks(minValue, maxValue) {
+  const candidates = [500_000, 1_000_000, 5_000_000, 10_000_000, 50_000_000, 100_000_000, 500_000_000, 1_000_000_000];
+  const bounded = candidates.filter((value) => value >= minValue && value <= maxValue);
+  const values = bounded.length ? bounded : [minValue, maxValue];
+  return values.map((value) => ({
+    value: Math.log10(1 + value),
+    label: shortMoney(value),
+  }));
+}
+
+function densityRadiusForZoom(baseRadius, zoom) {
+  if (zoom >= 14) return baseRadius * 4.4;
+  if (zoom >= 12) return baseRadius * 3.3;
+  if (zoom >= 10) return baseRadius * 2.5;
+  if (zoom >= 8) return baseRadius * 1.9;
+  if (zoom >= 6) return baseRadius * 1.45;
+  return baseRadius;
+}
+
 
 function renderSegmentComparison() {
   const container = document.getElementById("segmentComparison");
   if (!container) return;
+  destroyAgencySegmentMaps();
   const full = state.data.agencies || [];
   const top50 = topAverageAgencies(full);
   const fullMetrics = segmentMetrics(full, state.week);
@@ -187,9 +545,7 @@ function renderSegmentComparison() {
       ${renderSegmentCard("Red completa", "Todas las agencias con historial disponible", fullMetrics, "segmentMapFull")}
       ${renderSegmentCard("Top 50 promedio", "50 agencias con mayor venta promedio semanal", topMetrics, "segmentMapTop50")}
     </div>
-    ${renderTop50PopulationContext()}
   `;
-  bindPopulationRows();
 
   if (!window.L) {
     container.querySelectorAll(".segment-map").forEach((map) => {
@@ -198,8 +554,8 @@ function renderSegmentComparison() {
     return;
   }
 
-  state.maps.segmentFull = initSegmentMap("segmentMapFull", segmentMapPoints(full));
-  state.maps.segmentTop50 = initSegmentMap("segmentMapTop50", segmentMapPoints(top50));
+  state.maps.agencies.segmentFull = initSegmentMap("segmentMapFull", segmentMapPoints(full));
+  state.maps.agencies.segmentTop50 = initSegmentMap("segmentMapTop50", segmentMapPoints(top50));
 }
 
 function renderTop50PopulationContext() {
@@ -286,9 +642,6 @@ function renderCommuneMarketPanel() {
     </div>
     <p class="commune-market-note">${escapeHtml(context.method_note || "")}</p>
     <div class="commune-market-layout">
-      <div class="commune-market-detail">
-        ${renderCommuneMarketDetail(selected, context)}
-      </div>
       <div class="commune-market-list">
         <div class="commune-market-head">
           <span>Comuna</span>
@@ -315,6 +668,9 @@ function renderCommuneMarketPanel() {
             </button>
           `;
         }).join("")}
+      </div>
+      <div class="commune-market-detail">
+        ${renderCommuneMarketDetail(selected, context)}
       </div>
     </div>
   `;
@@ -346,6 +702,7 @@ function renderCommuneMarketDetail(row, context) {
     </div>
     <div class="commune-market-stats">
       ${segmentMetric("Poblacion mayor de 18", number(row.population || 0))}
+      ${segmentMetric("Prom. ventas", money(row.overall_avg_sales || 0))}
       ${segmentMetric("Prom. ventas / habitante", money(row.overall_avg_sales_per_adult || 0))}
       ${segmentMetric("Prom. ventas / 100k", money(row.overall_avg_sales_per_100k_adults || 0))}
       ${segmentMetric("Ultimo mes / 100k", money(row.latest_month_avg_sales_per_100k_adults || 0))}
@@ -391,10 +748,7 @@ function communeAgencies(commune) {
 }
 
 function renderCommuneMarketMap(row) {
-  if (state.maps.communeMarket && typeof state.maps.communeMarket.remove === "function") {
-    state.maps.communeMarket.remove();
-    delete state.maps.communeMarket;
-  }
+  destroyCommuneMap();
   const element = document.getElementById("communeMarketMap");
   if (!element || !row || !window.L) return;
   const agencies = communeAgencies(row.commune);
@@ -412,8 +766,42 @@ function renderCommuneMarketMap(row) {
     comuna: agency.comuna || row.commune,
     history: agency.history || [],
   }));
-  const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
-  state.maps.communeMarket = initLeafletMap("communeMarketMap", bounds, points, 11);
+  state.maps.commune = initCommuneMap("communeMarketMap", points);
+}
+
+function initCommuneMap(id, points) {
+  const map = L.map(id, {
+    zoomControl: true,
+    scrollWheelZoom: false,
+    preferCanvas: true,
+  });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+
+  const pointBounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
+  if (points.length === 1) {
+    const [point] = points;
+    map.setView([point.lat, point.lon], 13);
+  } else {
+    map.fitBounds(pointBounds.pad(0.35), { padding: [18, 18], maxZoom: 13 });
+  }
+  map.setMinZoom(11);
+
+  points.forEach((point) => {
+    L.circleMarker([point.lat, point.lon], {
+      radius: mapPointRadius(point.sales) + 2,
+      color: "white",
+      weight: 1,
+      fillColor: zoneColor(point.zone),
+      fillOpacity: 0.76,
+    })
+      .bindPopup(mapPopup(point), { maxWidth: 280 })
+      .addTo(map);
+  });
+  setTimeout(() => map.invalidateSize(), 0);
+  return map;
 }
 
 function communeMonthlySeriesChart(series, months) {
@@ -919,7 +1307,7 @@ function renderJackpotChart() {
 function renderTerritoryMaps(agencies) {
   const container = document.getElementById("territoryMaps");
   if (!container) return;
-  destroyMaps();
+  destroyTerritoryMaps();
   const points = agencies
     .filter((agency) => Number.isFinite(agency.latitude) && Number.isFinite(agency.longitude))
     .map((agency) => ({
@@ -946,8 +1334,14 @@ function renderTerritoryMaps(agencies) {
     return;
   }
 
-  state.maps.chile = initLeafletMap("chileMap", chileBounds, chilePoints, 4);
-  state.maps.rm = initLeafletMap("rmMap", rmBounds, rmPoints, 10);
+  state.maps.territory.chile = initLeafletMap("chileMap", chileBounds, chilePoints, 3, 11, {
+    center: [-35.7, -71.2],
+    zoom: 4,
+  });
+  state.maps.territory.rm = initLeafletMap("rmMap", rmBounds, rmPoints, 8, 13, {
+    center: [-33.45, -70.7],
+    zoom: 9,
+  });
 }
 
 function renderLeafletMapCard(id, title, subtitle, points, outOfBounds) {
@@ -971,7 +1365,7 @@ function renderLeafletMapCard(id, title, subtitle, points, outOfBounds) {
   `;
 }
 
-function initLeafletMap(id, bounds, points, minZoom) {
+function initLeafletMap(id, bounds, points, minZoom, maxZoomOnFit, fixedView = null) {
   const map = L.map(id, {
     zoomControl: true,
     scrollWheelZoom: false,
@@ -981,7 +1375,15 @@ function initLeafletMap(id, bounds, points, minZoom) {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
-  map.fitBounds(bounds, { padding: [14, 14] });
+  if (fixedView) {
+    map.setView(fixedView.center, fixedView.zoom);
+    map.setMaxBounds(bounds);
+  } else if (points.length) {
+    const pointBounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
+    map.fitBounds(pointBounds, { padding: [18, 18], maxZoom: maxZoomOnFit });
+  } else {
+    map.fitBounds(bounds, { padding: [14, 14] });
+  }
   map.setMinZoom(minZoom);
   points.forEach((point) => {
     L.circleMarker([point.lat, point.lon], {
@@ -998,13 +1400,79 @@ function initLeafletMap(id, bounds, points, minZoom) {
   return map;
 }
 
-function destroyMaps() {
-  Object.values(state.maps).forEach((map) => {
+function destroyTerritoryMaps() {
+  Object.values(state.maps.territory || {}).forEach((map) => {
     if (map && typeof map.remove === "function") {
       map.remove();
     }
   });
-  state.maps = {};
+  state.maps.territory = {};
+}
+
+function destroyAgencyMaps() {
+  Object.values(state.maps.agencies || {}).forEach((map) => {
+    if (map && typeof map.remove === "function") {
+      map.remove();
+    }
+  });
+  state.maps.agencies = {};
+}
+
+function destroyAgencySegmentMaps() {
+  ["segmentFull", "segmentTop50"].forEach((key) => {
+    const map = state.maps.agencies?.[key];
+    if (map && typeof map.remove === "function") {
+      map.remove();
+    }
+    if (state.maps.agencies) {
+      delete state.maps.agencies[key];
+    }
+  });
+}
+
+function destroyAgencyPrizeMaps() {
+  ["agencyPrizeMapChile", "agencyPrizeMapRm"].forEach((id) => {
+    const element = document.getElementById(id);
+    if (element && window.Plotly) {
+      Plotly.purge(element);
+    }
+  });
+  ["prizeChile", "prizeRm"].forEach((key) => {
+    const map = state.maps.agencies?.[key];
+    if (map && typeof map.remove === "function") {
+      map.remove();
+    }
+    if (state.maps.agencies) {
+      delete state.maps.agencies[key];
+    }
+  });
+}
+
+function destroyCommuneMap() {
+  const map = state.maps.commune;
+  if (map && typeof map.remove === "function") {
+    map.remove();
+  }
+  state.maps.commune = null;
+}
+
+function invalidatePerspectiveMaps() {
+  const groups = state.perspective === "territory"
+    ? [...Object.values(state.maps.territory || {}), state.maps.commune]
+    : Object.values(state.maps.agencies || {});
+  groups.forEach((map) => {
+    if (map && typeof map.invalidateSize === "function") {
+      map.invalidateSize();
+    }
+  });
+  if (state.perspective === "agencies" && window.Plotly) {
+    ["agencyPrizeMapChile", "agencyPrizeMapRm"].forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) {
+        Plotly.Plots.resize(element);
+      }
+    });
+  }
 }
 
 function mapPopup(point) {
@@ -1326,6 +1794,7 @@ function renderDetail(agency) {
   const previous = previousSnapshot(agency, state.week);
   const delta = (snapshot.sales || 0) - (previous?.sales || 0);
   const ts = agency.time_series || {};
+  const topPrize = agency.prize_top_subgames?.[0] || null;
   setText("detailTitle", `${agency.lotos_code} · ${agency.agent_name || "Sin nombre"}`);
   detail.innerHTML = [
     detailItem("Direccion", `${agency.address || "Sin dato"}, ${agency.comuna || ""}`),
@@ -1340,6 +1809,11 @@ function renderDetail(agency) {
     detailItem("Rubro", agency.rubro || "Sin dato"),
     detailItem("Mejor semana", ts.best_week ? `S${ts.best_week}: ${money(ts.best_sales || 0)}` : "Sin dato"),
     detailItem("Prom. serie", money(ts.avg_sales || 0)),
+    detailItem("Premios brutos", money(agency.prize_total_gross || 0)),
+    detailItem("Premios netos", money(agency.prize_total_net || 0)),
+    detailItem("Subjuegos con premio", number(agency.prize_subgames_count || 0)),
+    detailItem("Principal premio", topPrize ? `${topPrize.subgame} · ${money(topPrize.gross_total || 0)}` : "Sin premios cargados"),
+    topPrize ? `<div class="detail-item detail-wide"><span>Detalle premios</span><strong>${escapeHtml((agency.prize_top_subgames || []).map((item) => `${item.subgame}: ${money(item.gross_total || 0)}`).join(" · "))}</strong></div>` : "",
     `<div class="detail-item detail-wide"><span>Evolutivo semanal</span>${agencySparkline(agency.history || [], "detail")}</div>`,
   ].join("");
 }

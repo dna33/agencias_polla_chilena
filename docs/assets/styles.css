@@ -51,6 +51,10 @@ button {
   backdrop-filter: blur(14px);
 }
 
+.topbar-brand {
+  min-width: 0;
+}
+
 .topbar h1,
 .section-title h2,
 .assistant h2 {
@@ -79,9 +83,82 @@ button {
   gap: 12px;
 }
 
+.topbar-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 6px;
+}
+
+.topbar-tab {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.topbar-tab.active {
+  background: var(--ink);
+  color: white;
+}
+
 .layout {
   width: min(1840px, 100%);
   padding: 22px 28px 40px;
+}
+
+.page-shell {
+  display: none;
+  gap: 18px;
+}
+
+.page-shell.active-page {
+  display: grid;
+}
+
+.page-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 2px;
+}
+
+.page-head h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.page-copy {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 760px;
+}
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.workspace-nav-panel,
+.workspace-detail-panel {
+  min-width: 0;
+}
+
+.workspace-table {
+  max-height: 920px;
+  overflow: auto;
 }
 
 .field {
@@ -438,8 +515,9 @@ select:focus {
 
 .commune-market-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
+  align-items: start;
 }
 
 .commune-market-list,
@@ -453,6 +531,8 @@ select:focus {
 .commune-market-list {
   display: grid;
   gap: 6px;
+  max-height: 980px;
+  overflow: auto;
 }
 
 .commune-market-head,
@@ -1039,8 +1119,9 @@ select:focus {
 
 .map-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 0.82fr) minmax(420px, 1.18fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .map-card {
@@ -1090,8 +1171,17 @@ select:focus {
   background: #eef4f5;
 }
 
+.prize-map-plot {
+  width: 100%;
+  height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef4f5;
+}
+
 #rmMap {
-  height: 500px;
+  height: 560px;
 }
 
 .map-unavailable {
@@ -1478,6 +1568,13 @@ td strong {
   font-weight: 700;
 }
 
+.detail-item strong {
+  display: block;
+  color: var(--ink);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .detail-wide {
   grid-column: 1 / -1;
 }
@@ -1729,10 +1826,20 @@ td strong {
     padding: 16px;
   }
 
+  .topbar-nav {
+    width: fit-content;
+  }
+
   .layout {
     padding: 16px;
   }
 
+  .page-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-layout,
   .kpis,
   .two-column,
   .segment-layout,
