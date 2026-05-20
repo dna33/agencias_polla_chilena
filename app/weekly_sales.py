@@ -60,10 +60,13 @@ class WeeklyWorkbookParseResult:
 
 
 def parse_weekly_workbooks(paths: Iterable[str | Path]) -> list[WeeklyAgencySale]:
-    rows: list[WeeklyAgencySale] = []
+    rows_by_key: dict[tuple[str, int], WeeklyAgencySale] = {}
     for path in paths:
-        rows.extend(parse_weekly_workbook(path).rows)
-    return rows
+        for row in parse_weekly_workbook(path).rows:
+            if not row.lotos_code:
+                continue
+            rows_by_key[(row.lotos_code, row.week)] = row
+    return sorted(rows_by_key.values(), key=lambda row: (row.week, row.lotos_code or ""))
 
 
 def parse_weekly_workbook(path: str | Path) -> WeeklyWorkbookParseResult:
@@ -74,12 +77,11 @@ def parse_weekly_workbook(path: str | Path) -> WeeklyWorkbookParseResult:
     filename_week = _week_from_filename(workbook_path.name)
 
     for sheet in workbook.worksheets:
-        header_row, headers, header_week, sales_header = _find_header(sheet)
-        if header_row is None or headers is None or header_week is None or sales_header is None:
+        header_row, headers, sales_headers = _find_header(sheet)
+        if header_row is None or headers is None or not sales_headers:
             skipped_sheets.append(sheet.title)
             continue
 
-        week = filename_week or header_week
         normalized_headers = [_normalized_header(header) for header in headers]
         for row_index, row in enumerate(sheet.iter_rows(min_row=header_row + 1, values_only=True), start=header_row + 1):
             if _is_empty_row(row):
@@ -88,53 +90,58 @@ def parse_weekly_workbook(path: str | Path) -> WeeklyWorkbookParseResult:
             lotos_code = _code(row_map.get("lotos"))
             if not lotos_code:
                 continue
-            weekly_sales = _number(row_map.get(sales_header)) or 0.0
-            rows.append(
-                WeeklyAgencySale(
-                    source_file=workbook_path.name,
-                    source_sheet=sheet.title,
-                    source_row=row_index,
-                    week=week,
-                    lotos_code=lotos_code,
-                    master_code=_code(row_map.get("master")),
-                    previous_lotos_code=_code(row_map.get("loto anterior")),
-                    agent_name=_text(row_map.get("nombre agente")),
-                    rut=_code(row_map.get("rut.")),
-                    address=_text(row_map.get("direccion")),
-                    comuna=_text(row_map.get("comuna")),
-                    region_number=_code(row_map.get("reg.")),
-                    rubro=_text(row_map.get("rubro")),
-                    executive=_text(row_map.get("ejec./ coord.")),
-                    admission_date=_date(row_map.get("ingreso")),
-                    commercial_status=_text(row_map.get("est. com.")),
-                    operational_status=_text(row_map.get("status")),
-                    top_segment=_text(row_map.get("top")),
-                    coverage=_text(row_map.get("cobertura")),
-                    sales_status=_text(row_map.get("vta.")),
-                    weekly_sales=weekly_sales,
-                    average_sales_2019=_number(row_map.get("vta prom. 2019")),
-                    difference_vs_2019=_number(row_map.get("diferencia")),
-                    latitude=_number(row_map.get("latitud")),
-                    longitude=_number(row_map.get("longitud")),
-                    territory=_text(row_map.get("ubicacion")),
-                    closed_date=_date(row_map.get("baja")),
+            for header_week, sales_header in sales_headers:
+                week = (filename_week or header_week) if len(sales_headers) == 1 else header_week
+                weekly_sales = _number(row_map.get(sales_header)) or 0.0
+                rows.append(
+                    WeeklyAgencySale(
+                        source_file=workbook_path.name,
+                        source_sheet=sheet.title,
+                        source_row=row_index,
+                        week=week,
+                        lotos_code=lotos_code,
+                        master_code=_code(row_map.get("master")),
+                        previous_lotos_code=_code(row_map.get("loto anterior")),
+                        agent_name=_text(row_map.get("nombre agente")),
+                        rut=_code(row_map.get("rut.")),
+                        address=_text(row_map.get("direccion")),
+                        comuna=_text(row_map.get("comuna")),
+                        region_number=_code(row_map.get("reg.")),
+                        rubro=_text(row_map.get("rubro")),
+                        executive=_text(row_map.get("ejec./ coord.")),
+                        admission_date=_date(row_map.get("ingreso")),
+                        commercial_status=_text(row_map.get("est. com.")),
+                        operational_status=_text(row_map.get("status")),
+                        top_segment=_text(row_map.get("top")),
+                        coverage=_text(row_map.get("cobertura")),
+                        sales_status=_text(row_map.get("vta.")),
+                        weekly_sales=weekly_sales,
+                        average_sales_2019=_number(row_map.get("vta prom. 2019")),
+                        difference_vs_2019=_number(row_map.get("diferencia")),
+                        latitude=_number(row_map.get("latitud")),
+                        longitude=_number(row_map.get("longitud")),
+                        territory=_text(row_map.get("ubicacion")),
+                        closed_date=_date(row_map.get("baja")),
+                    )
                 )
-            )
 
     return WeeklyWorkbookParseResult(rows=rows, skipped_sheets=skipped_sheets)
 
 
-def _find_header(sheet) -> tuple[int | None, list[object] | None, int | None, str | None]:
+def _find_header(sheet) -> tuple[int | None, list[object] | None, list[tuple[int, str]]]:
     for row_index in range(1, min(sheet.max_row, 15) + 1):
         values = [sheet.cell(row_index, column).value for column in range(1, sheet.max_column + 1)]
         normalized_headers = [_normalized_header(value) for value in values]
         if "lotos" not in normalized_headers:
             continue
+        sales_headers: list[tuple[int, str]] = []
         for header in normalized_headers:
             match = WEEKLY_SALES_RE.match(header)
             if match:
-                return row_index, values, int(match.group(1)), header
-    return None, None, None, None
+                sales_headers.append((int(match.group(1)), header))
+        if sales_headers:
+            return row_index, values, sorted(sales_headers, key=lambda item: item[0])
+    return None, None, []
 
 
 def _week_from_filename(filename: str) -> int | None:

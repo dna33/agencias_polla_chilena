@@ -2,7 +2,17 @@ from __future__ import annotations
 
 import build_pages_data
 from app.weekly_sales import WeeklyAgencySale
-from build_pages_data import agency_time_series_metrics, build_dashboard_payload, commune_market_context, weekly_input_paths
+from pathlib import Path
+import json
+
+from build_pages_data import (
+    agency_time_series_metrics,
+    build_dashboard_payload,
+    commune_market_context,
+    territorial_prize_communes_context,
+    weekly_zone_input_paths,
+    weekly_input_paths,
+)
 
 
 def make_row(
@@ -182,3 +192,72 @@ def test_weekly_input_paths_excludes_prize_workbook(tmp_path):
     paths = weekly_input_paths(tmp_path)
 
     assert [path.name for path in paths] == ["Base Semana 17.xlsx"]
+
+
+def test_weekly_input_paths_prefers_historical_sales_report(tmp_path):
+    (tmp_path / "Base Semana 17.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx").write_text("", encoding="utf-8")
+
+    paths = weekly_input_paths(tmp_path)
+
+    assert [path.name for path in paths] == ["Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx"]
+
+
+def test_weekly_input_paths_includes_newer_incremental_weeks_after_historical_report(tmp_path):
+    (tmp_path / "Base Semana 17.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "Base Semana 18.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx").write_text("", encoding="utf-8")
+
+    paths = weekly_input_paths(tmp_path)
+
+    assert [path.name for path in paths] == [
+        "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx",
+        "Base Semana 18.xlsx",
+    ]
+
+
+def test_weekly_zone_input_paths_excludes_historical_sales_report(tmp_path):
+    (tmp_path / "Base Semana 17.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx").write_text("", encoding="utf-8")
+
+    paths = weekly_zone_input_paths(tmp_path)
+
+    assert [path.name for path in paths] == ["Base Semana 17.xlsx"]
+
+
+def test_territorial_prize_communes_context_aggregates_prizes_on_geojson(tmp_path):
+    geojson_path = tmp_path / "comunas.geojson"
+    geojson_path.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"Comuna": "Santiago", "codregion": 13, "Region": "RM"},
+                "geometry": {"type": "Polygon", "coordinates": []},
+            },
+            {
+                "type": "Feature",
+                "properties": {"Comuna": "Maipu", "codregion": 13, "Region": "RM"},
+                "geometry": {"type": "Polygon", "coordinates": []},
+            },
+        ],
+    }), encoding="utf-8")
+
+    context = territorial_prize_communes_context(
+        [
+            {"lotos_code": "123456", "gross_total": 900_000, "net_total": 850_000},
+            {"lotos_code": "654321", "gross_total": 300_000, "net_total": 250_000},
+        ],
+        [
+            {"lotos_code": "123456", "comuna": "SANTIAGO", "history": [{"sales": 2_000_000}, {"sales": 1_000_000}]},
+            {"lotos_code": "654321", "comuna": "MAIPU", "history": [{"sales": 500_000}]},
+        ],
+        tmp_path,
+    )
+
+    assert context["communes_with_prizes"] == 2
+    santiago = next(feature for feature in context["features"] if feature["properties"]["commune"] == "Santiago")
+    assert santiago["properties"]["gross_total"] == 900_000
+    assert santiago["properties"]["agencies_with_prizes"] == 1
+    assert santiago["properties"]["sales_total"] == 3_000_000
+    assert round(santiago["properties"]["net_over_sales_pct"], 2) == 28.33

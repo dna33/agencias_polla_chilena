@@ -56,6 +56,18 @@
           </article>
         </section>
 
+        <section class="panel chart-panel">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Lectura explicativa</p>
+              <h2>Pozo promedio por juego y venta Loto</h2>
+            </div>
+            <div class="table-count">MM$ promedio por juego</div>
+          </div>
+          <div id="jackpotSummary" class="chart-caption"></div>
+          <div id="jackpotChart" class="jackpot-chart" role="img" aria-label="Pozos Loto y Kino comparados con venta semanal de agencias Loto"></div>
+        </section>
+
         <section class="panel">
           <div class="section-title">
             <div>
@@ -78,17 +90,18 @@
           <div id="communeMarketPanel" class="commune-market-panel"></div>
         </section>
 
-        <section class="panel chart-panel">
+        <section class="panel">
           <div class="section-title">
             <div>
-              <p class="eyebrow">Lectura explicativa</p>
-              <h2>Pozo promedio por juego y venta Loto</h2>
+              <p class="eyebrow">Territorio comunal</p>
+              <h2>Premios entregados agregados por comuna</h2>
             </div>
-            <div class="table-count">MM$ promedio por juego</div>
+            <div class="table-count">Heatmap comunal sobre vectores</div>
           </div>
-          <div id="jackpotSummary" class="chart-caption"></div>
-          <div id="jackpotChart" class="jackpot-chart" role="img" aria-label="Pozos Loto y Kino comparados con venta semanal de agencias Loto"></div>
+          <div id="territorialPrizeCommunesMeta" class="chart-caption"></div>
+          <div id="territorialPrizeCommunesMaps" class="map-grid" aria-label="Mapas comunales de premios"></div>
         </section>
+
       </section>
 
       <section class="page-shell" data-page="agencies">
@@ -310,11 +323,12 @@
         <button data-prompt="resumen semana">Resumen</button>
         <button data-prompt="mayores caidas">Caidas</button>
         <button data-prompt="territorio norte">Norte</button>
+        <button data-prompt="quiero ir a comprar en la agencia que mas suerte ha tenido, mas cercana a mi, donde la suerte pese 80% y la distancia un 20%">Suerte + cercania</button>
       </div>
     </aside>
 
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="assets/app.js?v=20260428-plotly-suerte-8"></script>
+    <script src="assets/app.js?v=20260502-chat-luck-proximity"></script>
   </body>
 </html>

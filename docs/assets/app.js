@@ -105,7 +105,7 @@ async function loadData() {
 
 function showLoadError(error) {
   const message = `No se pudo cargar la data del dashboard. Usa un servidor local o GitHub Pages; abrir index.html directo como archivo puede bloquear data/dashboard.json. Detalle: ${error.message}`;
-  ["segmentComparison", "seriesNarrative", "territoryChart", "trendChart", "jackpotChart", "weeklyZoneChart", "communeMarketPanel", "agencyDetail"].forEach((id) => {
+  ["segmentComparison", "seriesNarrative", "territoryChart", "trendChart", "jackpotChart", "weeklyZoneChart", "communeMarketPanel", "territorialPrizeCommunesMaps", "agencyDetail"].forEach((id) => {
     const element = document.getElementById(id);
     if (element) element.innerHTML = `<p class="load-error">${escapeHtml(message)}</p>`;
   });
@@ -159,6 +159,7 @@ function render() {
   safeRender("segmentComparison", renderSegmentComparison);
   safeRender("weeklyZoneChart", renderWeeklyZoneChart);
   safeRender("communeMarketPanel", renderCommuneMarketPanel);
+  safeRender("territorialPrizeCommunesMaps", renderTerritorialPrizeCommunesMaps);
   safeRender("agencyTable", () => renderTable(agencies));
   safeRender("agencyDetail", () => renderDetail(state.selectedAgency));
   applyPerspective();
@@ -294,10 +295,14 @@ function renderAgencyPrizeHeatMaps() {
   if (!container) return;
 
   const points = agencyPrizeMapPoints();
+  const threshold = 5_000_000;
   if (meta) {
     const totalGross = points.reduce((sum, point) => sum + (point.prizeGross || 0), 0);
+    const totalNet = points.reduce((sum, point) => sum + (point.prizeNet || 0), 0);
+    const aboveGross = points.filter((point) => (point.prizeGross || 0) >= threshold).length;
+    const ratioReady = points.filter((point) => (point.prizeGrossOverSalesPct || 0) > 0).length;
     meta.textContent = points.length
-      ? `${number(points.length)} agencias con premios georreferenciadas. Monto bruto total representado: ${money(totalGross)}. La escala usa color continuo con referencia visible en millones para leer el espectro de premios.`
+      ? `${number(points.length)} agencias con premios georreferenciadas. Bruto total: ${money(totalGross)}. Neto total: ${money(totalNet)}. El color bruto parte en ${money(threshold)} y la vista inferior muestra premio bruto sobre ventas brutas del local (%). ${number(ratioReady)} agencias tienen base de ventas para ese ratio.`
       : "No hay agencias con premios y coordenadas para mapear.";
   }
 
@@ -315,21 +320,35 @@ function renderAgencyPrizeHeatMaps() {
 
   const rmBounds = [[-34.15, -71.45], [-32.95, -70.25]];
   const rmPoints = points.filter((point) => point.lat >= rmBounds[0][0] && point.lat <= rmBounds[1][0] && point.lon >= rmBounds[0][1] && point.lon <= rmBounds[1][1]);
+  const ratioPoints = points.filter((point) => (point.prizeGrossOverSalesPct || 0) > 0);
+  const rmRatioPoints = rmPoints.filter((point) => (point.prizeGrossOverSalesPct || 0) > 0);
   container.innerHTML = `
-    ${renderPrizePlotCard("agencyPrizeMapChile", "Chile", "Densidad territorial de premios entregados", points.length)}
-    ${renderPrizePlotCard("agencyPrizeMapRm", "Region Metropolitana", "Concentracion metropolitana de premios", rmPoints.length)}
+    ${renderPrizePlotCard("agencyPrizeMapChile", "Chile", "Densidad territorial de premios brutos entregados", points.length)}
+    ${renderPrizePlotCard("agencyPrizeMapRm", "Region Metropolitana", "Concentracion metropolitana de premios brutos", rmPoints.length)}
+    ${renderPrizePlotCard("agencyPrizeNetMapChile", "Chile", "Premio bruto sobre ventas brutas del local (%)", ratioPoints.length)}
+    ${renderPrizePlotCard("agencyPrizeNetMapRm", "Region Metropolitana", "Premio bruto sobre ventas brutas del local (%)", rmRatioPoints.length)}
   `;
 
   renderPrizeDensityPlot("agencyPrizeMapChile", points, {
     center: { lat: -35.7, lon: -71.2 },
     zoom: 3.9,
     radius: 20,
-  });
+  }, "prizeGross");
   renderPrizeDensityPlot("agencyPrizeMapRm", rmPoints, {
     center: { lat: -33.45, lon: -70.66 },
     zoom: 8.3,
     radius: 16,
-  });
+  }, "prizeGross");
+  renderPrizeDensityPlot("agencyPrizeNetMapChile", ratioPoints, {
+    center: { lat: -35.7, lon: -71.2 },
+    zoom: 3.9,
+    radius: 8,
+  }, "prizeGrossOverSalesPct");
+  renderPrizeDensityPlot("agencyPrizeNetMapRm", rmRatioPoints, {
+    center: { lat: -33.45, lon: -70.66 },
+    zoom: 8.3,
+    radius: 6,
+  }, "prizeGrossOverSalesPct");
 }
 
 function agencyPrizeMapPoints() {
@@ -346,9 +365,16 @@ function agencyPrizeMapPoints() {
       sales: weekSnapshot(agency, state.week)?.sales || 0,
       prizeGross: agency.prize_total_gross || 0,
       prizeNet: agency.prize_total_net || 0,
+      observedSalesTotal: (agency.history || []).reduce((sum, item) => sum + (item.sales || 0), 0),
       prizeSubgamesCount: agency.prize_subgames_count || 0,
       topPrize: agency.prize_top_subgames?.[0] || null,
       history: agency.history || [],
+    }))
+    .map((point) => ({
+      ...point,
+      prizeGrossOverSalesPct: point.observedSalesTotal > 0
+        ? (point.prizeGross / point.observedSalesTotal) * 100
+        : 0,
     }));
 }
 
@@ -368,40 +394,63 @@ function renderPrizePlotCard(id, title, subtitle, count) {
 }
 
 function prizeHeatWeight(value, maxValue) {
+  const threshold = 5_000_000;
   if (!value || !maxValue) return 0;
-  const ratio = Math.log10(1 + value) / Math.log10(1 + maxValue);
+  if (maxValue <= 100) {
+    const ratio = value / maxValue;
+    return Math.max(0.02, Math.min(1, Math.pow(ratio, 0.9)));
+  }
+  if (value < threshold) return 0;
+  const shiftedValue = value - threshold;
+  const shiftedMax = Math.max(1, maxValue - threshold);
+  const ratio = Math.log10(1 + shiftedValue) / Math.log10(1 + shiftedMax);
   return Math.max(0.02, Math.min(1, Math.pow(ratio, 1.15)));
 }
 
-function prizeHeatScale(points) {
+function prizeHeatScale(points, valueKey = "prizeGross") {
+  const threshold = 5_000_000;
   const values = points
-    .map((point) => point.prizeGross || 0)
-    .filter((value) => value > 0)
+    .map((point) => point[valueKey] || 0)
+    .filter((value) => valueKey === "prizeGrossOverSalesPct" ? value > 0 : value >= threshold)
     .sort((a, b) => a - b);
   if (!values.length) {
-    return { cap: 1, min: 1 };
+    return valueKey === "prizeGrossOverSalesPct"
+      ? { cap: 1, min: 0.01 }
+      : { cap: threshold, min: threshold };
+  }
+  if (valueKey === "prizeGrossOverSalesPct") {
+    const percentileIndex = Math.max(0, Math.min(values.length - 1, Math.floor((values.length - 1) * 0.95)));
+    const cap = values[percentileIndex] || values[values.length - 1] || 1;
+    return {
+      cap: Math.max(1, cap),
+      min: Math.max(0.01, values[0] || 0.01),
+    };
   }
   const cap = values[values.length - 1] || 1;
   return {
-    cap: Math.max(1, cap),
-    min: Math.max(1, values[0] || 1),
+    cap: Math.max(threshold, cap),
+    min: Math.max(threshold, values[0] || threshold),
   };
 }
 
-function renderPrizeDensityPlot(id, points, view) {
+function renderPrizeDensityPlot(id, points, view, valueKey = "prizeGross") {
   const element = document.getElementById(id);
   if (!element) return;
   if (!points.length) {
     element.innerHTML = "<div class='map-unavailable'>Sin agencias con premios para esta vista.</div>";
     return;
   }
-  const scale = prizeHeatScale(points);
-  const weights = points.map((point) => prizeHeatWeight(point.prizeGross || 0, scale.cap));
-  const colorValues = points.map((point) => Math.log10(1 + (point.prizeGross || 0)));
+  const scale = prizeHeatScale(points, valueKey);
+  const weights = points.map((point) => prizeHeatWeight(point[valueKey] || 0, scale.cap));
+  const colorValues = points.map((point) => {
+    const value = point[valueKey] || 0;
+    return value >= scale.min ? Math.log10(1 + value) : Math.log10(1 + scale.min);
+  });
   const colorMin = Math.log10(1 + scale.min);
   const colorMax = Math.log10(1 + scale.cap);
-  const colorbarTicks = prizeColorbarTicks(scale.min, scale.cap);
+  const colorbarTicks = prizeColorbarTicks(scale.min, scale.cap, valueKey);
   const baseRadius = view.radius;
+  const colorscale = prizeOriginalColorscale();
   const trace = {
     type: "densitymapbox",
     lat: points.map((point) => point.lat),
@@ -409,40 +458,26 @@ function renderPrizeDensityPlot(id, points, view) {
     z: weights,
     radius: baseRadius,
     hovertemplate: "Densidad de premios<extra></extra>",
-    colorscale: [
-      [0.0, "#2c7bb6"],
-      [0.2, "#00a6ca"],
-      [0.4, "#00ccbc"],
-      [0.58, "#90eb9d"],
-      [0.74, "#ffff8c"],
-      [0.88, "#f9d057"],
-      [1.0, "#f29e2e"],
-    ],
+    colorscale,
     showscale: false,
     opacity: 0.68,
   };
-  const markers = {
+  const legendTrace = {
     type: "scattermapbox",
     mode: "markers",
     lat: points.map((point) => point.lat),
     lon: points.map((point) => point.lon),
+    hoverinfo: "skip",
     marker: {
-      size: points.map((point) => 6 + prizeHeatWeight(point.prizeGross || 0, scale.cap) * 12),
+      size: 0.1,
+      opacity: 0,
       color: colorValues,
       cmin: colorMin,
       cmax: colorMax,
-      colorscale: [
-        [0.0, "#2c7bb6"],
-        [0.2, "#00a6ca"],
-        [0.4, "#00ccbc"],
-        [0.58, "#90eb9d"],
-        [0.74, "#ffff8c"],
-        [0.88, "#f9d057"],
-        [1.0, "#f29e2e"],
-      ],
-      opacity: 0.68,
+      colorscale,
+      showscale: true,
       colorbar: {
-        title: { text: "Premios<br>brutos" },
+        title: { text: valueKey === "prizeGrossOverSalesPct" ? "Premio / venta" : valueKey === "prizeNet" ? "Premios netos" : "Premios brutos" },
         thickness: 12,
         len: 0.72,
         x: 0.98,
@@ -452,28 +487,9 @@ function renderPrizeDensityPlot(id, points, view) {
         outlinewidth: 0,
       },
     },
-    customdata: points.map((point) => [
-      point.lotosCode,
-      point.code,
-      point.name,
-      point.comuna,
-      point.zone,
-      point.prizeGross,
-      point.prizeNet,
-      point.prizeSubgamesCount,
-      point.topPrize?.subgame || "",
-      point.topPrize?.gross_total || 0,
-    ]),
-    hovertemplate: [
-      "<b>%{customdata[1]} · %{customdata[2]}</b>",
-      "%{customdata[3]} · %{customdata[4]}",
-      "Premios brutos: %{customdata[5]:$,d}",
-      "Premios netos: %{customdata[6]:$,d} · %{customdata[7]} subj.",
-      "Principal: %{customdata[8]} %{customdata[9]:$,d}",
-      "<extra></extra>",
-    ].join("<br>"),
   };
   const layout = {
+    autosize: true,
     margin: { t: 0, r: 0, b: 0, l: 0 },
     paper_bgcolor: "#fbfcfc",
     plot_bgcolor: "#fbfcfc",
@@ -489,30 +505,37 @@ function renderPrizeDensityPlot(id, points, view) {
     responsive: true,
     scrollZoom: true,
   };
-  Plotly.newPlot(element, [trace, markers], layout, config).then(() => {
-    element.__currentPrizeRadius = baseRadius;
-    element.on("plotly_click", (event) => {
-      const point = event?.points?.find((item) => item.data?.type === "scattermapbox");
-      const lotosCode = point?.customdata?.[0];
-      if (!lotosCode) return;
-      const agency = state.data.agencies.find((item) => item.lotos_code === lotosCode);
-      if (agency) {
-        state.selectedAgency = agency;
-        renderDetail(agency);
+  Plotly.newPlot(element, [trace, legendTrace], layout, config).then(() => {
+    const width = element.clientWidth || element.offsetWidth || 0;
+    const height = element.clientHeight || element.offsetHeight || 560;
+    if (width > 0 && height > 0) {
+      Plotly.relayout(element, { width, height });
+    }
+    Plotly.Plots.resize(element);
+    requestAnimationFrame(() => {
+      Plotly.Plots.resize(element);
+    });
+    setTimeout(() => {
+      const delayedWidth = element.clientWidth || element.offsetWidth || 0;
+      const delayedHeight = element.clientHeight || element.offsetHeight || 560;
+      if (delayedWidth > 0 && delayedHeight > 0) {
+        Plotly.relayout(element, { width: delayedWidth, height: delayedHeight });
       }
-    });
-    element.on("plotly_relayout", (event) => {
-      const zoom = event?.["mapbox.zoom"];
-      if (typeof zoom !== "number") return;
-      const nextRadius = densityRadiusForZoom(baseRadius, zoom);
-      if (Math.abs((element.__currentPrizeRadius || 0) - nextRadius) < 0.5) return;
-      element.__currentPrizeRadius = nextRadius;
-      Plotly.restyle(element, { radius: [nextRadius] }, [0]);
-    });
+      Plotly.Plots.resize(element);
+    }, 180);
   });
 }
 
-function prizeColorbarTicks(minValue, maxValue) {
+function prizeColorbarTicks(minValue, maxValue, valueKey = "prizeGross") {
+  if (valueKey === "prizeGrossOverSalesPct") {
+    const candidates = [1, 2, 5, 10, 20, 30, 50, 75, 100];
+    const bounded = candidates.filter((value) => value >= minValue && value <= maxValue);
+    const values = bounded.length ? bounded : [minValue, maxValue];
+    return values.map((value) => ({
+      value: Math.log10(1 + value),
+      label: `${round(value).toFixed(0)}%`,
+    }));
+  }
   const candidates = [500_000, 1_000_000, 5_000_000, 10_000_000, 50_000_000, 100_000_000, 500_000_000, 1_000_000_000];
   const bounded = candidates.filter((value) => value >= minValue && value <= maxValue);
   const values = bounded.length ? bounded : [minValue, maxValue];
@@ -522,15 +545,17 @@ function prizeColorbarTicks(minValue, maxValue) {
   }));
 }
 
-function densityRadiusForZoom(baseRadius, zoom) {
-  if (zoom >= 14) return baseRadius * 4.4;
-  if (zoom >= 12) return baseRadius * 3.3;
-  if (zoom >= 10) return baseRadius * 2.5;
-  if (zoom >= 8) return baseRadius * 1.9;
-  if (zoom >= 6) return baseRadius * 1.45;
-  return baseRadius;
+function prizeOriginalColorscale() {
+  return [
+    [0.0, "#2c7bb6"],
+    [0.2, "#00a6ca"],
+    [0.4, "#00ccbc"],
+    [0.58, "#90eb9d"],
+    [0.74, "#ffff8c"],
+    [0.88, "#f9d057"],
+    [1.0, "#f29e2e"],
+  ];
 }
-
 
 function renderSegmentComparison() {
   const container = document.getElementById("segmentComparison");
@@ -685,6 +710,343 @@ function renderCommuneMarketPanel() {
   if (selectedRow) {
     selectedRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
+}
+
+function renderTerritorialPrizeCommunesMaps() {
+  const container = document.getElementById("territorialPrizeCommunesMaps");
+  const meta = document.getElementById("territorialPrizeCommunesMeta");
+  if (!container) return;
+  const context = state.data?.territorial_prize_communes;
+  if (!context?.features?.length) {
+    if (meta) meta.textContent = "Sin geometria comunal o sin premios agregados por comuna.";
+    container.innerHTML = "<p class='muted'>Sin base comunal para desplegar premios sobre vectores.</p>";
+    return;
+  }
+  if (!window.Plotly) {
+    if (meta) meta.textContent = "";
+    container.innerHTML = "<p class='load-error'>No se pudo cargar Plotly para el mapa comunal de premios.</p>";
+    return;
+  }
+
+  const features = context.features;
+  const prizeFeatures = features.filter((feature) => (feature.properties?.gross_total || 0) > 0);
+  const rmFeatures = prizeFeatures.filter((feature) => String(feature.properties?.region_code || "") === "13");
+  const netRatioFeatures = features.filter((feature) => (feature.properties?.net_over_sales_pct || 0) > 0);
+  const rmNetRatioFeatures = netRatioFeatures.filter((feature) => String(feature.properties?.region_code || "") === "13");
+  if (meta) {
+    meta.textContent = `${number(context.communes_with_prizes || prizeFeatures.length)} comunas con premios. Total bruto comunal: ${money(context.gross_total || 0)}. Las vistas inferiores normalizan premios netos por venta comunal observada (%).`;
+  }
+
+  destroyTerritorialPrizeCommunePlots();
+  container.innerHTML = `
+    ${renderPrizePlotCard("territorialPrizeCommunesChile", "Chile", "Premios brutos agregados por comuna", prizeFeatures.length)}
+    ${renderPrizePlotCard("territorialPrizeCommunesRm", "Region Metropolitana", "Premios brutos agregados por comuna en RM", rmFeatures.length)}
+    ${renderPrizePlotCard("territorialPrizeCommunesNetChile", "Chile", "Premios netos sobre venta comunal (%)", netRatioFeatures.length)}
+    ${renderPrizePlotCard("territorialPrizeCommunesNetRm", "Region Metropolitana", "Premios netos sobre venta comunal (%) en RM", rmNetRatioFeatures.length)}
+  `;
+
+  renderTerritorialPrizeCommunePlot("territorialPrizeCommunesChile", features, {
+    center: { lat: -35.7, lon: -71.2 },
+    zoom: 3.9,
+    fitbounds: "locations",
+  });
+  renderTerritorialPrizeCommunePlot("territorialPrizeCommunesRm", rmFeatures, {
+    center: { lat: -33.45, lon: -70.66 },
+    zoom: 8.3,
+  });
+  renderTerritorialPrizeCommunePlot("territorialPrizeCommunesNetChile", netRatioFeatures, {
+    center: { lat: -35.7, lon: -71.2 },
+    zoom: 3.9,
+    fitbounds: "locations",
+  }, "net_over_sales_pct");
+  renderTerritorialPrizeCommunePlot("territorialPrizeCommunesNetRm", rmNetRatioFeatures, {
+    center: { lat: -33.45, lon: -70.66 },
+    zoom: 8.3,
+  }, "net_over_sales_pct");
+}
+
+function renderTerritorialPrizeCommunePlot(id, features, view, valueKey = "gross_total") {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const activeFeatures = (features || []).filter((feature) => (feature.properties?.[valueKey] || 0) > 0);
+  if (!activeFeatures.length) {
+    element.innerHTML = "<div class='map-unavailable'>Sin comunas con premios para esta vista.</div>";
+    return;
+  }
+  const rawValues = activeFeatures.map((feature) => feature.properties?.[valueKey] || 0);
+  const minValue = Math.min(...rawValues);
+  const maxValue = Math.max(...rawValues);
+  const transformed = territorialPrizeScale(rawValues, valueKey);
+  const centroidRows = activeFeatures
+    .map((feature, index) => {
+      const centroid = geometryCentroid(feature.geometry);
+      if (!centroid) return null;
+      return {
+        feature,
+        lat: centroid[1],
+        lon: centroid[0],
+        value: rawValues[index],
+        scaled: transformed.values[index],
+        area: Number(feature.properties?.shape_area || 0),
+      };
+    })
+    .filter(Boolean);
+  if (!centroidRows.length) {
+    element.innerHTML = "<div class='map-unavailable'>No pude calcular centroides comunales para esta vista.</div>";
+    return;
+  }
+  const colorscale = territorialPrizeColorscale(valueKey);
+  const colorbarTicks = territorialPrizeColorbarTicks(minValue, maxValue, valueKey);
+  const thermalTraces = territorialThermalLayers(centroidRows, colorscale, transformed, valueKey);
+  const legendTrace = {
+    type: "scattermapbox",
+    mode: "markers",
+    lat: centroidRows.map((row) => row.lat),
+    lon: centroidRows.map((row) => row.lon),
+    hoverinfo: "skip",
+    marker: {
+      size: 0.1,
+      opacity: 0,
+      color: centroidRows.map((row) => row.scaled),
+      cmin: transformed.zmin,
+      cmax: transformed.zmax,
+      colorscale,
+      showscale: true,
+      colorbar: {
+        title: { text: valueKey === "net_over_sales_pct" ? "Suerte comunal" : "Premios brutos" },
+        thickness: 12,
+        len: 0.72,
+        x: 0.98,
+        y: 0.5,
+        tickvals: colorbarTicks.map((item) => territorialPrizeScaleValue(item.value, minValue, maxValue, valueKey)),
+        ticktext: colorbarTicks.map((item) => item.label),
+        outlinewidth: 0,
+      },
+    },
+  };
+  const hoverTrace = {
+    type: "scattermapbox",
+    mode: "markers",
+    lat: centroidRows.map((row) => row.lat),
+    lon: centroidRows.map((row) => row.lon),
+    marker: {
+      size: centroidRows.map((row) => 14 + row.scaled * 18),
+      opacity: 0.01,
+      color: centroidRows.map((row) => row.scaled),
+      cmin: transformed.zmin,
+      cmax: transformed.zmax,
+      colorscale,
+    },
+    customdata: centroidRows.map((row) => [
+      row.feature.properties.commune,
+      row.feature.properties.region_name,
+      row.feature.properties.gross_total,
+      row.feature.properties.net_total,
+      row.feature.properties.agencies_with_prizes,
+      row.feature.properties.sales_total,
+      row.feature.properties.net_over_sales_pct,
+    ]),
+    hovertemplate: [
+      "<b>%{customdata[0]}</b>",
+      "%{customdata[1]}",
+      "Premios brutos: %{customdata[2]:$,d}",
+      "Premios netos: %{customdata[3]:$,d}",
+      "Agencias con premios: %{customdata[4]}",
+      "Venta comunal: %{customdata[5]:$,d}",
+      "Premio neto / venta: %{customdata[6]:.2f}%",
+      valueKey === "net_over_sales_pct" ? "Lectura: suerte relativa comunal" : "",
+      "<extra></extra>",
+    ].filter(Boolean).join("<br>"),
+  };
+  const layout = {
+    autosize: true,
+    margin: { t: 0, r: 0, b: 0, l: 0 },
+    paper_bgcolor: "#fbfcfc",
+    plot_bgcolor: "#fbfcfc",
+    dragmode: "pan",
+    mapbox: {
+      style: "carto-positron",
+      center: view.center,
+      zoom: view.zoom,
+    },
+  };
+  if (view.fitbounds) {
+    layout.mapbox.fitbounds = view.fitbounds;
+  }
+  const config = {
+    displayModeBar: false,
+    responsive: true,
+    scrollZoom: true,
+  };
+  Plotly.newPlot(element, [...thermalTraces, legendTrace, hoverTrace], layout, config).then(() => {
+    const width = element.clientWidth || element.offsetWidth || 0;
+    const height = element.clientHeight || element.offsetHeight || 560;
+    if (width > 0 && height > 0) {
+      Plotly.relayout(element, { width, height });
+    }
+    Plotly.Plots.resize(element);
+    requestAnimationFrame(() => Plotly.Plots.resize(element));
+  });
+}
+
+function territorialThermalLayers(rows, colorscale, transformed, valueKey = "gross_total") {
+  const areas = rows.map((row) => row.area).filter((value) => value > 0);
+  const minArea = areas.length ? Math.min(...areas) : 1;
+  const maxArea = areas.length ? Math.max(...areas) : minArea;
+  const layerMultipliers = valueKey === "net_over_sales_pct"
+    ? [4.9, 3.15, 1.85]
+    : [4.4, 2.85, 1.7];
+  const opacities = valueKey === "net_over_sales_pct"
+    ? [0.16, 0.25, 0.36]
+    : [0.14, 0.22, 0.34];
+  return layerMultipliers.map((multiplier, index) => ({
+    type: "densitymapbox",
+    lat: rows.map((row) => row.lat),
+    lon: rows.map((row) => row.lon),
+    z: rows.map((row) => row.scaled),
+    radius: rows.map((row) => areaWeightedRadius(row, minArea, maxArea, multiplier, valueKey)),
+    hoverinfo: "skip",
+    colorscale,
+    zmin: transformed.zmin,
+    zmax: transformed.zmax,
+    showscale: false,
+    opacity: opacities[index],
+  }));
+}
+
+function areaWeightedRadius(row, minArea, maxArea, multiplier, valueKey = "gross_total") {
+  const safeArea = Math.max(row.area || minArea, minArea);
+  const minLog = Math.log10(1 + minArea);
+  const maxLog = Math.log10(1 + maxArea);
+  const areaLog = Math.log10(1 + safeArea);
+  const normalizedArea = (areaLog - minLog) / Math.max(maxLog - minLog, 1e-9);
+  const curvedArea = Math.pow(normalizedArea, 0.72);
+  const normalizedValue = clamp(row.scaled, 0, 1);
+  const curvedValue = valueKey === "net_over_sales_pct"
+    ? Math.pow(normalizedValue, 1.05)
+    : Math.pow(normalizedValue, 0.58);
+  const baseRadius = 18 + curvedArea * 42;
+  const valueBoost = 0.92 + curvedValue * 1.45;
+  return baseRadius * valueBoost * multiplier;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function territorialPrizeScale(values, valueKey = "gross_total") {
+  if (valueKey === "net_over_sales_pct") {
+    const sorted = [...values].sort((a, b) => a - b);
+    const ranked = values.map((value) => {
+      const index = sorted.findIndex((item) => item === value);
+      const percentile = sorted.length <= 1 ? 1 : index / (sorted.length - 1);
+      return Math.max(0.08, percentile);
+    });
+    return {
+      values: ranked,
+      zmin: 0,
+      zmax: 1,
+    };
+  }
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  return {
+    values: values.map((value) => territorialPrizeScaleValue(value, minValue, maxValue, valueKey)),
+    zmin: 0,
+    zmax: 1,
+  };
+}
+
+function territorialPrizeScaleValue(value, minValue, maxValue, valueKey = "gross_total") {
+  if (valueKey === "net_over_sales_pct") {
+    const safeMax = Math.max(maxValue, minValue + 1e-9);
+    const normalized = (value - minValue) / (safeMax - minValue);
+    return Math.max(0.08, Math.min(1, normalized));
+  }
+  const minLog = Math.log10(1 + minValue);
+  const maxLog = Math.log10(1 + maxValue);
+  const currentLog = Math.log10(1 + value);
+  const normalized = (currentLog - minLog) / Math.max(maxLog - minLog, 1e-9);
+  return Math.pow(Math.max(0, Math.min(1, normalized)), 0.72);
+}
+
+function territorialPrizeColorscale(valueKey = "gross_total") {
+  if (valueKey === "net_over_sales_pct") {
+    return [
+      [0.0, "#fff8ef"],
+      [0.18, "#ffe8c8"],
+      [0.36, "#ffd29a"],
+      [0.56, "#ffb774"],
+      [0.74, "#fb8d59"],
+      [0.88, "#ef6548"],
+      [1.0, "#d7301f"],
+    ];
+  }
+  return [
+    [0.0, "#fff7ec"],
+    [0.18, "#fee8c8"],
+    [0.38, "#fdd49e"],
+    [0.58, "#fdbb84"],
+    [0.78, "#fc8d59"],
+    [0.92, "#e34a33"],
+    [1.0, "#b30000"],
+  ];
+}
+
+function geometryCentroid(geometry) {
+  if (!geometry || !geometry.type || !geometry.coordinates) {
+    return null;
+  }
+  if (geometry.type === "Polygon") {
+    return polygonCentroid(geometry.coordinates);
+  }
+  if (geometry.type === "MultiPolygon") {
+    const centroids = geometry.coordinates
+      .map((polygon) => polygonCentroid(polygon))
+      .filter(Boolean);
+    if (!centroids.length) return null;
+    const lon = centroids.reduce((sum, item) => sum + item[0], 0) / centroids.length;
+    const lat = centroids.reduce((sum, item) => sum + item[1], 0) / centroids.length;
+    return [lon, lat];
+  }
+  return null;
+}
+
+function polygonCentroid(coordinates) {
+  const ring = coordinates?.[0];
+  if (!ring || ring.length < 3) {
+    return null;
+  }
+  let area = 0;
+  let x = 0;
+  let y = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    const [x1, y1] = ring[index];
+    const [x2, y2] = ring[index + 1];
+    const factor = x1 * y2 - x2 * y1;
+    area += factor;
+    x += (x1 + x2) * factor;
+    y += (y1 + y2) * factor;
+  }
+  if (Math.abs(area) < 1e-9) {
+    const lon = ring.reduce((sum, point) => sum + point[0], 0) / ring.length;
+    const lat = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
+    return [lon, lat];
+  }
+  const denominator = area * 3;
+  return [x / denominator, y / denominator];
+}
+
+function territorialPrizeColorbarTicks(minValue, maxValue, valueKey = "gross_total") {
+  if (valueKey === "net_over_sales_pct") {
+    return [
+      { value: minValue, label: "baja" },
+      { value: minValue + (maxValue - minValue) * 0.35, label: "media" },
+      { value: minValue + (maxValue - minValue) * 0.7, label: "alta" },
+      { value: maxValue, label: "muy alta" },
+    ];
+  }
+  return prizeColorbarTicks(minValue, maxValue);
 }
 
 function renderCommuneMarketDetail(row, context) {
@@ -1002,12 +1364,7 @@ function initSegmentMap(id, points) {
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
   const chileBounds = [[-56.2, -76.5], [-17.2, -66.0]];
-  if (points.length) {
-    const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
-    map.fitBounds(bounds, { padding: [18, 18], maxZoom: 11 });
-  } else {
-    map.fitBounds(chileBounds, { padding: [14, 14] });
-  }
+  map.fitBounds(chileBounds, { padding: [14, 14] });
   points.forEach((point) => {
     const marker = L.circleMarker([point.lat, point.lon], {
       radius: mapPointRadius(point.sales),
@@ -1287,6 +1644,9 @@ function renderJackpotChart() {
       <path class="jackpot-line kino" d="${kinoPath}"></path>
       ${drawable.map((row, index) => `
         <g>
+          <rect x="${x(index) - 18}" y="${margin.top}" width="36" height="${plotHeight}" fill="transparent">
+            <title>${jackpotTooltip(row)}</title>
+          </rect>
           ${row.sales ? `<circle class="jackpot-dot sales" cx="${x(index)}" cy="${ySales(row.sales)}" r="4"><title>S${row.week} venta: ${money(row.sales)}</title></circle>` : ""}
           ${row.loto_total_mm ? `<circle class="jackpot-dot loto" cx="${x(index)}" cy="${yJackpot(row.loto_total_mm)}" r="4"><title>S${row.week} Loto: ${number(row.loto_total_mm)} MM$ · ${number(row.jackpot_draws || 0)} sorteos PDF</title></circle>` : ""}
           ${row.kino_total_mm ? `<circle class="jackpot-dot kino" cx="${x(index)}" cy="${yJackpot(row.kino_total_mm)}" r="4"><title>S${row.week} Kino: ${number(row.kino_total_mm)} MM$ · ${number(row.jackpot_draws || 0)} sorteos PDF</title></circle>` : ""}
@@ -1302,6 +1662,16 @@ function renderJackpotChart() {
       <span><i class="kino"></i>Kino</span>
     </div>
   `;
+}
+
+function jackpotTooltip(row) {
+  return [
+    `Semana ${row.week}`,
+    row.sales ? `Venta total: ${money(row.sales)}` : "Venta total: s/d",
+    row.loto_total_mm ? `Pozo Loto: ${number(row.loto_total_mm)} MM$` : "Pozo Loto: s/d",
+    row.kino_total_mm ? `Pozo Kino: ${number(row.kino_total_mm)} MM$` : "Pozo Kino: s/d",
+    `Sorteos PDF: ${number(row.jackpot_draws || 0)}`,
+  ].join(" · ");
 }
 
 function renderTerritoryMaps(agencies) {
@@ -1431,7 +1801,7 @@ function destroyAgencySegmentMaps() {
 }
 
 function destroyAgencyPrizeMaps() {
-  ["agencyPrizeMapChile", "agencyPrizeMapRm"].forEach((id) => {
+  ["agencyPrizeMapChile", "agencyPrizeMapRm", "agencyPrizeNetMapChile", "agencyPrizeNetMapRm"].forEach((id) => {
     const element = document.getElementById(id);
     if (element && window.Plotly) {
       Plotly.purge(element);
@@ -1456,6 +1826,15 @@ function destroyCommuneMap() {
   state.maps.commune = null;
 }
 
+function destroyTerritorialPrizeCommunePlots() {
+  ["territorialPrizeCommunesChile", "territorialPrizeCommunesRm", "territorialPrizeCommunesNetChile", "territorialPrizeCommunesNetRm"].forEach((id) => {
+    const element = document.getElementById(id);
+    if (element && window.Plotly) {
+      Plotly.purge(element);
+    }
+  });
+}
+
 function invalidatePerspectiveMaps() {
   const groups = state.perspective === "territory"
     ? [...Object.values(state.maps.territory || {}), state.maps.commune]
@@ -1466,7 +1845,15 @@ function invalidatePerspectiveMaps() {
     }
   });
   if (state.perspective === "agencies" && window.Plotly) {
-    ["agencyPrizeMapChile", "agencyPrizeMapRm"].forEach((id) => {
+    ["agencyPrizeMapChile", "agencyPrizeMapRm", "agencyPrizeNetMapChile", "agencyPrizeNetMapRm"].forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) {
+        Plotly.Plots.resize(element);
+      }
+    });
+  }
+  if (state.perspective === "territory" && window.Plotly) {
+    ["territorialPrizeCommunesChile", "territorialPrizeCommunesRm", "territorialPrizeCommunesNetChile", "territorialPrizeCommunesNetRm"].forEach((id) => {
       const element = document.getElementById(id);
       if (element) {
         Plotly.Plots.resize(element);
@@ -1970,7 +2357,7 @@ function resetChat() {
   const messages = document.getElementById("chatMessages");
   messages.innerHTML = "";
   addMessage(
-    `Listo. Tengo ${number(state.data.agencies.length)} agencias y semanas ${state.data.weeks.join(", ")}. Puedes preguntar: "agencias en deterioro", "crecimiento sostenido", "alta volatilidad", "evolucion 120148" o "zona norte semanal".`,
+    `Listo. Tengo ${number(state.data.agencies.length)} agencias y semanas ${state.data.weeks.join(", ")}. Puedes preguntar: "agencias en deterioro", "crecimiento sostenido", "alta volatilidad", "evolucion 120148", "zona norte semanal" o "quiero ir a comprar en la agencia que mas suerte ha tenido, mas cercana a mi, donde la suerte pese 80% y la distancia un 20%".`,
     "bot",
   );
 }
@@ -1988,7 +2375,10 @@ function answerQuestion(rawText) {
   const text = normalize(rawText);
   if (!state.data) return "Aun estoy cargando los datos.";
   if (text.includes("ayuda")) {
-    return "Puedes preguntarme por resumen semana, deterioro sostenido, crecimiento sostenido, alta volatilidad, racha cero venta, territorio, ejecutivo, codigo Lotos, evolucion de agencia o indice de agencia.";
+    return "Puedes preguntarme por resumen semana, deterioro sostenido, crecimiento sostenido, alta volatilidad, racha cero venta, territorio, ejecutivo, codigo Lotos, evolucion de agencia, indice de agencia o agencia con mas suerte y cercania.";
+  }
+  if ((text.includes("suerte") || text.includes("premio")) && (text.includes("cerca") || text.includes("cercana") || text.includes("distancia"))) {
+    return "Puedo armar ese ranking, pero me falta tu ubicacion. La logica seria: score = 80% suerte + 20% cercania, usando la metrica de premios del local y la distancia a tu punto de origen. Si me das una comuna, direccion o coordenadas, la siguiente version del chat puede devolverte la mejor agencia candidata.";
   }
 
   const code = rawText.match(/\b\d{5,6}\b/)?.[0];

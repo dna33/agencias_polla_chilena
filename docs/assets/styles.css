@@ -1180,6 +1180,16 @@ select:focus {
   background: #eef4f5;
 }
 
+.prize-map-plot .js-plotly-plot,
+.prize-map-plot .plot-container,
+.prize-map-plot .svg-container,
+.prize-map-plot .mapboxgl-map,
+.prize-map-plot .mapboxgl-canvas-container,
+.prize-map-plot .mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 #rmMap {
   height: 560px;
 }

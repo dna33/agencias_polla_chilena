@@ -9,7 +9,7 @@ from math import sqrt
 from statistics import mean, median
 import re
 
-from app.census_population import population_by_commune
+from app.census_population import normalize_commune, population_by_commune
 from app.agency_prizes import find_agency_prize_workbook, parse_agency_prize_workbook
 from app.grouped_sales import parse_weekly_zone_evolution
 from app.jackpot_pdf import parse_jackpot_pdfs
@@ -19,6 +19,7 @@ from app.weekly_sales import WeeklyAgencySale, parse_weekly_workbooks
 DEFAULT_INPUT_DIR = Path("input")
 DEFAULT_OUTPUT_PATH = Path("docs/data/dashboard.json")
 PDF_YEAR_RE = re.compile(r"Quick Report LOTO_(\d{4})_\d{2}_\d{2}\.pdf$", re.IGNORECASE)
+FILENAME_WEEK_RE = re.compile(r"\b(?:semana|sem)\s*(\d{1,2})\b", re.IGNORECASE)
 
 
 def main() -> None:
@@ -31,18 +32,32 @@ def main() -> None:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    paths = weekly_input_paths(input_dir)
-    rows = parse_weekly_workbooks(paths)
-    payload = build_dashboard_payload(rows, paths, input_dir)
+    sales_paths = weekly_input_paths(input_dir)
+    zone_paths = weekly_zone_input_paths(input_dir)
+    rows = parse_weekly_workbooks(sales_paths)
+    payload = build_dashboard_payload(rows, sales_paths, input_dir, zone_paths=zone_paths)
     output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"Archivos procesados: {len(paths)}")
+    print(f"Archivos procesados: {len(sales_paths)}")
     print(f"Semanas: {payload['weeks']}")
     print(f"Agencias: {len(payload['agencies'])}")
     print(f"JSON: {output_path}")
 
 
 def weekly_input_paths(input_dir: Path) -> list[Path]:
+    historical_paths = sorted(input_dir.glob("Venta Loto Semana * Reporte *.xlsx"))
+    if historical_paths:
+        historical_max_week = max(_week_from_filename(path.name) or 0 for path in historical_paths)
+        incremental_paths = [
+            path
+            for path in sorted(input_dir.glob("*.xlsx"))
+            if not path.name.startswith("~$")
+            and not path.name.startswith("MaeGerCom")
+            and not path.name.lower().startswith("premios vendidos por lotos")
+            and not path.name.lower().startswith("venta loto semana")
+            and (_week_from_filename(path.name) or 0) > historical_max_week
+        ]
+        return historical_paths + incremental_paths
     paths: list[Path] = []
     for path in sorted(input_dir.glob("*.xlsx")):
         if path.name.startswith("~$"):
@@ -55,7 +70,34 @@ def weekly_input_paths(input_dir: Path) -> list[Path]:
     return paths
 
 
-def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], input_dir: Path | str = DEFAULT_INPUT_DIR) -> dict:
+def _week_from_filename(filename: str) -> int | None:
+    match = FILENAME_WEEK_RE.search(filename)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def weekly_zone_input_paths(input_dir: Path) -> list[Path]:
+    paths: list[Path] = []
+    for path in sorted(input_dir.glob("*.xlsx")):
+        if path.name.startswith("~$"):
+            continue
+        if path.name.startswith("MaeGerCom"):
+            continue
+        if path.name.lower().startswith("premios vendidos por lotos"):
+            continue
+        if path.name.lower().startswith("venta loto semana"):
+            continue
+        paths.append(path)
+    return paths
+
+
+def build_dashboard_payload(
+    rows: list[WeeklyAgencySale],
+    paths: list[Path],
+    input_dir: Path | str = DEFAULT_INPUT_DIR,
+    zone_paths: list[Path] | None = None,
+) -> dict:
     weeks = sorted({row.week for row in rows})
     latest_week = weeks[-1] if weeks else None
     previous_week = weeks[-2] if len(weeks) > 1 else None
@@ -72,6 +114,7 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
     jackpots = jackpot_payload(input_dir)
     top50_population = top50_population_context(agency_payload, latest_week, input_dir)
     commune_market = commune_market_context(rows, weeks, latest_week, input_dir)
+    territorial_prize_communes = territorial_prize_communes_context(prize_rows, agency_payload, input_dir)
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -92,7 +135,8 @@ def build_dashboard_payload(rows: list[WeeklyAgencySale], paths: list[Path], inp
         "agency_prize_summary": summarize_agency_prizes(prize_rows, agency_payload),
         "top50_population_context": top50_population,
         "commune_market_context": commune_market,
-        "weekly_zone_evolution": weekly_zone_evolution(paths, input_dir),
+        "territorial_prize_communes": territorial_prize_communes,
+        "weekly_zone_evolution": weekly_zone_evolution(zone_paths or paths, input_dir),
         "priorities": priorities(agency_payload),
         "agencies": agency_payload,
     }
@@ -130,6 +174,101 @@ def prize_payload(input_dir: Path | str) -> list[dict]:
         }
         for row in parse_agency_prize_workbook(workbook_path)
     ]
+
+
+def territorial_prize_communes_context(prize_rows: list[dict], agencies: list[dict], input_dir: Path | str) -> dict:
+    geojson_path = commune_geojson_path(input_dir)
+    if not geojson_path.exists():
+        return {
+            "source_file": None,
+            "geojson_file": None,
+            "features": [],
+            "communes_with_prizes": 0,
+            "gross_total": 0,
+            "net_total": 0,
+        }
+
+    features_data = json.loads(geojson_path.read_text(encoding="utf-8")).get("features", [])
+    agencies_by_lotos = {agency["lotos_code"]: agency for agency in agencies}
+    commune_sales_totals: dict[str, int] = defaultdict(int)
+    commune_sales_agencies: dict[str, set[str]] = defaultdict(set)
+    for agency in agencies:
+        commune = agency.get("comuna")
+        if not commune:
+            continue
+        commune_key = normalize_commune(commune)
+        observed_sales_total = sum(int(item.get("sales") or 0) for item in agency.get("history", []))
+        commune_sales_totals[commune_key] += observed_sales_total
+        if observed_sales_total > 0:
+            commune_sales_agencies[commune_key].add(agency["lotos_code"])
+    prize_by_commune: dict[str, dict] = defaultdict(lambda: {
+        "commune": None,
+        "region_code": None,
+        "region_name": None,
+        "gross_total": 0,
+        "net_total": 0,
+        "agencies_with_prizes": set(),
+    })
+
+    for row in prize_rows:
+        agency = agencies_by_lotos.get(row["lotos_code"])
+        commune = agency.get("comuna") if agency else None
+        if not commune:
+            continue
+        commune_key = normalize_commune(commune)
+        item = prize_by_commune[commune_key]
+        item["commune"] = commune
+        item["gross_total"] += int(row.get("gross_total") or 0)
+        item["net_total"] += int(row.get("net_total") or 0)
+        item["agencies_with_prizes"].add(row["lotos_code"])
+
+    enriched_features = []
+    for feature in features_data:
+        properties = dict(feature.get("properties") or {})
+        commune_name = properties.get("Comuna")
+        commune_key = normalize_commune(commune_name)
+        metrics = prize_by_commune.get(commune_key)
+        region_code = str(properties.get("codregion") or "")
+        region_name = properties.get("Region")
+        gross_total = int(metrics["gross_total"]) if metrics else 0
+        net_total = int(metrics["net_total"]) if metrics else 0
+        agencies_with_prizes = len(metrics["agencies_with_prizes"]) if metrics else 0
+        sales_total = int(commune_sales_totals.get(commune_key) or 0)
+        enriched_features.append({
+            "type": "Feature",
+            "geometry": feature.get("geometry"),
+            "properties": {
+                "commune": commune_name,
+                "commune_key": commune_key,
+                "region_code": region_code,
+                "region_name": region_name,
+                "shape_area": float(properties.get("st_area_sh") or 0),
+                "gross_total": gross_total,
+                "net_total": net_total,
+                "agencies_with_prizes": agencies_with_prizes,
+                "sales_total": sales_total,
+                "agencies_with_sales": len(commune_sales_agencies.get(commune_key, set())),
+                "net_over_sales_pct": (net_total / sales_total * 100) if sales_total > 0 else None,
+            },
+        })
+
+    communes_with_prizes = [feature for feature in enriched_features if feature["properties"]["gross_total"] > 0]
+    return {
+        "source_file": prize_rows[0].get("source_file") if prize_rows else None,
+        "geojson_file": str(geojson_path),
+        "features": enriched_features,
+        "communes_with_prizes": len(communes_with_prizes),
+        "gross_total": sum(feature["properties"]["gross_total"] for feature in communes_with_prizes),
+        "net_total": sum(feature["properties"]["net_total"] for feature in communes_with_prizes),
+    }
+
+
+def commune_geojson_path(input_dir: Path | str) -> Path:
+    input_path = Path(input_dir)
+    candidate = input_path / "comunas.geojson"
+    if candidate.exists():
+        return candidate
+    return Path(__file__).resolve().parent / "app" / "resources" / "comunas.geojson"
 
 
 def weekly_sales_with_jackpots(rows: list[WeeklyAgencySale], jackpots: list[dict]) -> list[dict]:
