@@ -216,6 +216,18 @@ def test_weekly_input_paths_includes_newer_incremental_weeks_after_historical_re
     ]
 
 
+def test_weekly_input_paths_accepts_abbreviated_sem_with_dot(tmp_path):
+    (tmp_path / "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx").write_text("", encoding="utf-8")
+    (tmp_path / "Base_ sem. 23.xlsx").write_text("", encoding="utf-8")
+
+    paths = weekly_input_paths(tmp_path)
+
+    assert [path.name for path in paths] == [
+        "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx",
+        "Base_ sem. 23.xlsx",
+    ]
+
+
 def test_weekly_zone_input_paths_excludes_historical_sales_report(tmp_path):
     (tmp_path / "Base Semana 17.xlsx").write_text("", encoding="utf-8")
     (tmp_path / "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx").write_text("", encoding="utf-8")

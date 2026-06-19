@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 
 
 WEEKLY_SALES_RE = re.compile(r"^Vta\.Sem\.(\d+)$", re.IGNORECASE)
-FILENAME_WEEK_RE = re.compile(r"\b(?:semana|sem)\s*(\d{1,2})\b", re.IGNORECASE)
+FILENAME_WEEK_RE = re.compile(r"\b(?:semana|sem)\.?\s*(\d{1,2})\b", re.IGNORECASE)
 
 
 @dataclass(slots=True)

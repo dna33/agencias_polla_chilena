@@ -73,6 +73,21 @@ def test_filename_week_overrides_stale_sales_header(tmp_path):
     assert result.rows[0].weekly_sales == 3210
 
 
+def test_filename_week_accepts_abbreviated_sem_with_dot(tmp_path):
+    path = tmp_path / "Base_ sem. 23.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "LOTO_ PtoVta"
+    sheet.append(["N°", "  Lotos", "Nombre Agente", "Vta.Sem.22"])
+    sheet.append([1, 123456, "Agencia Uno", 4321])
+    workbook.save(path)
+
+    result = parse_weekly_workbook(path)
+
+    assert result.rows[0].week == 23
+    assert result.rows[0].weekly_sales == 4321
+
+
 def test_parse_historical_sheet_with_multiple_week_columns(tmp_path):
     path = tmp_path / "Venta Loto Semana 17 vs Anteriores Reporte DAZ vsimple.xlsx"
     workbook = Workbook()

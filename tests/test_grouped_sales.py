@@ -32,5 +32,6 @@ def test_parse_weekly_zone_evolution_from_grouped_workbook(tmp_path):
     week_6 = [row for row in rows if row.week == 6]
     assert {row.zone for row in week_1} == {"RM Norte", "Norte"}
     assert next(row for row in week_1 if row.zone == "RM Norte").sales == 100
+    assert next(row for row in week_1 if row.zone == "RM Norte").commune_names == ("SANTIAGO",)
     assert next(row for row in week_1 if row.zone == "Norte").sales == 1000
     assert next(row for row in week_6 if row.zone == "RM Norte").sales == 600

@@ -20,6 +20,7 @@ class WeeklyZoneSale:
     week_label: str
     sales: int
     communes: int
+    commune_names: tuple[str, ...]
 
 
 def parse_weekly_zone_evolution(path: str | Path) -> list[WeeklyZoneSale]:
@@ -53,6 +54,7 @@ def parse_weekly_zone_evolution(path: str | Path) -> list[WeeklyZoneSale]:
             week_label=f"S{week}",
             sales=sales,
             communes=len(weekly_communes[(zone, week)]),
+            commune_names=tuple(sorted(weekly_communes[(zone, week)])),
         )
         for (zone, week), sales in weekly_sales.items()
     ]

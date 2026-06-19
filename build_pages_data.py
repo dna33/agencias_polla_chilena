@@ -19,7 +19,7 @@ from app.weekly_sales import WeeklyAgencySale, parse_weekly_workbooks
 DEFAULT_INPUT_DIR = Path("input")
 DEFAULT_OUTPUT_PATH = Path("docs/data/dashboard.json")
 PDF_YEAR_RE = re.compile(r"Quick Report LOTO_(\d{4})_\d{2}_\d{2}\.pdf$", re.IGNORECASE)
-FILENAME_WEEK_RE = re.compile(r"\b(?:semana|sem)\s*(\d{1,2})\b", re.IGNORECASE)
+FILENAME_WEEK_RE = re.compile(r"\b(?:semana|sem)\.?\s*(\d{1,2})\b", re.IGNORECASE)
 
 
 def main() -> None:

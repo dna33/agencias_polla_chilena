@@ -3,10 +3,12 @@ from __future__ import annotations
 import csv
 import unicodedata
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 
 
 CENSUS_PEOPLE_FILENAME = "personas_censo2024.csv"
+COMMUNE_CODES_FILENAME = "codigos_comunas_bidat.csv"
 
 COMMUNE_CODE_BY_NAME = {
     "ANTOFAGASTA": "2101",
@@ -44,19 +46,28 @@ COMMUNE_CODE_BY_NAME = {
     "VILLA ALEMANA": "5804",
     "VINA DEL MAR": "5109",
     "VITACURA": "13132",
+    "AISEN": "11201",
+    "AYSEN": "11201",
+    "LLAY LLAY": "5703",
+    "LLAY-LLAY": "5703",
+    "MARCHIGUE": "6204",
+    "TIL TIL": "13303",
+    "TIL-TIL": "13303",
 }
 
 
 def population_by_commune(input_dir: str | Path, commune_names: set[str]) -> dict[str, int]:
+    input_path = Path(input_dir)
+    code_lookup = _commune_code_lookup(input_path)
     codes_by_commune = {
-        commune: COMMUNE_CODE_BY_NAME.get(normalize_commune(commune))
+        commune: code_lookup.get(normalize_commune(commune))
         for commune in commune_names
     }
     target_codes = {code for code in codes_by_commune.values() if code}
     if not target_codes:
         return {}
 
-    path = Path(input_dir) / CENSUS_PEOPLE_FILENAME
+    path = input_path / CENSUS_PEOPLE_FILENAME
     if not path.exists():
         return {}
 
@@ -71,10 +82,42 @@ def population_by_commune(input_dir: str | Path, commune_names: set[str]) -> dic
 def normalize_commune(value: str | None) -> str:
     text = unicodedata.normalize("NFD", str(value or ""))
     text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    text = text.replace("-", " ")
     return " ".join(text.upper().strip().split())
 
 
+def _commune_code_lookup(input_dir: Path) -> dict[str, str]:
+    lookup = dict(COMMUNE_CODE_BY_NAME)
+    path = _commune_codes_path(input_dir)
+    if not path.exists():
+        return lookup
+
+    with path.open("r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file, delimiter=";")
+        if not reader.fieldnames or "COMUNA_INE" not in reader.fieldnames or "N_COMUNA" not in reader.fieldnames:
+            return lookup
+        for row in reader:
+            name = normalize_commune(row.get("N_COMUNA"))
+            code = str(row.get("COMUNA_INE") or "").strip()
+            if name and code:
+                lookup[name] = code
+    return lookup
+
+
+def _commune_codes_path(input_dir: Path) -> Path:
+    input_path = input_dir / COMMUNE_CODES_FILENAME
+    if input_path.exists():
+        return input_path
+    return Path(__file__).resolve().parent / "resources" / COMMUNE_CODES_FILENAME
+
+
 def _count_adults_by_code(path: Path, target_codes: set[str]) -> Counter[str]:
+    counts = _adult_counts_by_code(path)
+    return Counter({code: counts.get(code, 0) for code in target_codes})
+
+
+@lru_cache(maxsize=4)
+def _adult_counts_by_code(path: Path) -> Counter[str]:
     counts: Counter[str] = Counter()
     with path.open("r", encoding="utf-8", newline="") as file:
         reader = csv.reader(file, delimiter=";")
@@ -88,7 +131,7 @@ def _count_adults_by_code(path: Path, target_codes: set[str]) -> Counter[str]:
                 continue
             code = row[commune_index]
             age = _parse_age(row[age_index])
-            if code in target_codes and age is not None and age > 18:
+            if age is not None and age > 18:
                 counts[code] += 1
     return counts
 
